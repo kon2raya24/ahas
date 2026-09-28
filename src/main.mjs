@@ -5,6 +5,7 @@ import { bot } from './bot.mjs';
 import { createRenderer } from './render.mjs';
 import { createAudio } from './audio.mjs';
 import { MEDALS, earned } from './medals.mjs';
+import { festival } from './festivals.mjs';
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.get('test') === '1';
@@ -22,6 +23,8 @@ const data = {
   scores: { klasiko: [], walangpader: [], ...(saved.scores || {}) },
   daily: saved.daily || { day: 0, best: 0 },
   medals: Array.isArray(saved.medals) ? saved.medals : [],
+  music: saved.music !== false,
+  hints: Array.isArray(saved.hints) ? saved.hints : [],
 };
 if (!saved.scores && Number(saved.best) > 0) data.scores.klasiko.push({ score: Number(saved.best), len: 0, day: 0 });
 const persist = () => store.set(data);
@@ -36,6 +39,7 @@ const canvas = $('board');
 const R = createRenderer(canvas);
 const A = createAudio();
 A.setMuted(data.muted);
+A.setMusic(data.music);
 
 const DIR = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 const TIPS = [
@@ -62,6 +66,7 @@ let mode = 'title', game = null, demo = createGame({ seed: randomSeed() }), read
 function show(name) {
   for (const id of ['title', 'pause', 'over', 'medals']) $(id).hidden = id !== name;
   $('pause-btn').hidden = name !== null;
+  document.body.classList.toggle('playing', name === null);
   const first = name && ($(name).querySelector('button.primary') || $(name).querySelector('button'));
   if (first) first.focus({ preventScroll: true });
 }
@@ -72,8 +77,10 @@ function start() {
   game = createGame({ seed: m === 'daily' && !(TEST && Q.get('seed')) ? today() : randomSeed(), mode: m });
   R.reset();
   readyT = 1.1; think = true; lastBeat = -1; newMedals = [];
+  setFestival(1);
   mode = 'play';
   show(null);
+  hint('turn', matchMedia('(pointer: coarse)').matches ? 'Swipe anywhere, or use the d-pad, to turn.' : 'Turn with the arrow keys or WASD.');
 }
 
 function record(g) {
@@ -134,11 +141,26 @@ function checkMedals(g) {
     persist();
   }
 }
-let toastTimer = 0;
-function toast(text) {
+// Toasts queue up, so a medal and a hint never overwrite each other.
+const toasts = [];
+let toastBusy = false;
+function toast(text, ms = 2600) {
+  toasts.push([text, ms]);
+  if (!toastBusy) nextToast();
+}
+function nextToast() {
   const el = $('toast');
-  el.textContent = text; el.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  const item = toasts.shift();
+  toastBusy = !!item;
+  if (!item) { el.hidden = true; return; }
+  el.textContent = item[0]; el.hidden = false;
+  setTimeout(nextToast, item[1]);
+}
+// First-game hints, each shown once ever.
+function hint(id, text) {
+  if (data.hints.includes(id) || AUTOPLAY) return;
+  data.hints.push(id); persist();
+  toast(text, 3400);
 }
 
 function renderMedals() {
@@ -170,13 +192,14 @@ async function share() {
 function onEvent(e) {
   R.event(e, game);
   switch (e.type) {
-    case 'eat': A.eat(e.combo, !!FOODS[e.food].special); buzz(12); checkMedals(game); break;
-    case 'spawn': A.spawn(!!e.special); break;
+    case 'eat': A.eat(e.combo, !!FOODS[e.food].special); buzz(12); checkMedals(game); hint('eat', 'Sarap! Every meal makes you longer. Eat fast for a combo.'); break;
+    case 'spawn': A.spawn(!!e.special); if (e.special) hint('special', 'Special food! Grab it before its timer ring runs out.'); break;
+    case 'pole': hint('pole', 'Red line! Get your head out before the tinikling poles clap.'); break;
     case 'expire': A.expire(); break;
     case 'clap': A.clap(); buzz(30); checkMedals(game); break;
     case 'cut': A.cut(); buzz(60); break;
-    case 'level': A.level(); buzz([20, 40, 20]); checkMedals(game); break;
-    case 'rooster': A.crow(); break;
+    case 'level': setFestival(e.level); A.level(); buzz([20, 40, 20]); checkMedals(game); hint('level', 'New barangay, new festival, and more banga pots in the way.'); break;
+    case 'rooster': A.crow(); hint('rooster', 'The tandang steals your food. Beat him to it, and never bump him.'); break;
     case 'peck': A.peck(); break;
     case 'shield': A.shield(); buzz(50); checkMedals(game); break;
     case 'die': A.die(); buzz([80, 40, 140]); overAt = performance.now() + 1100; break;
@@ -185,9 +208,12 @@ function onEvent(e) {
   }
 }
 
+// The page behind the board takes on the festival's color.
+const setFestival = (level) => document.body.style.setProperty('--accent', festival(level).accent);
+
 function pause() { if (mode === 'play') { mode = 'pause'; show('pause'); } }
 function resume() { if (mode === 'pause') { mode = 'play'; show(null); } }
-function toMenu() { mode = 'title'; game = null; show('title'); updateTitle(); }
+function toMenu() { mode = 'title'; game = null; setFestival(1); show('title'); updateTitle(); }
 
 // ---------- input ----------
 function steer(d) {
@@ -217,9 +243,14 @@ for (const ev of ['pointerup', 'pointercancel']) stage.addEventListener(ev, () =
 for (const b of document.querySelectorAll('[data-dir]')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); steer(DIR[b.dataset.dir]); });
 
 function toggleSound() { A.start(); data.muted = !data.muted; A.setMuted(data.muted); persist(); soundLabel(); }
-const soundLabel = () => { for (const b of document.querySelectorAll('.sound')) b.textContent = data.muted ? 'Tunog: off' : 'Tunog: on'; };
+function toggleMusic() { A.start(); data.music = !data.music; A.setMusic(data.music); persist(); soundLabel(); }
+const soundLabel = () => {
+  for (const b of document.querySelectorAll('.sound')) { b.textContent = data.muted ? '🔇' : '🔊'; b.setAttribute('aria-label', data.muted ? 'Tunog: off, turn sound on' : 'Tunog: on, turn sound off'); b.title = 'Tunog · Sound (M)'; }
+  for (const b of document.querySelectorAll('.music')) { b.textContent = '🎵'; b.classList.toggle('off', !data.music); b.setAttribute('aria-label', data.music ? 'Musika: on, turn music off' : 'Musika: off, turn music on'); b.title = 'Musika · Music'; }
+};
 soundLabel();
 for (const b of document.querySelectorAll('.sound')) b.onclick = toggleSound;
+for (const b of document.querySelectorAll('.music')) b.onclick = toggleMusic;
 for (const b of document.querySelectorAll('.play')) b.onclick = start;
 for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => { data.mode = b.dataset.mode; persist(); updateTitle(); };
 $('resume').onclick = resume;
@@ -270,6 +301,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 window.addEventListener('resize', R.resize);
+// installable and playable offline; skipped in tests so headless runs always load fresh files
+if ('serviceWorker' in navigator && !TEST) navigator.serviceWorker.register('sw.js').catch(() => { /* online-only then */ });
 R.resize();
 show('title');
 requestAnimationFrame(frame);

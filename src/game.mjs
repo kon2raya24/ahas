@@ -2,6 +2,9 @@
 // tandang and the barangay levels, and returns events (move, eat, expire, spawn, pole, clap, cut,
 // level, peck, shield, die). Rendering and audio only read it.
 import { rng } from './rng.mjs';
+import { festival } from './festivals.mjs';
+
+export { FESTIVALS, festival } from './festivals.mjs';
 
 export const COLS = 20, ROWS = 20;
 export const BASE_INTERVAL = 0.14; // seconds per cell at the start
@@ -117,7 +120,7 @@ function levelUp(g, ev) {
     g.pots.push(pot); added.push(pot);
   }
   if (g.level >= 2 && g.roosterAt === null) g.roosterAt = g.t + 2;
-  ev.push({ type: 'level', level: g.level, pots: added });
+  ev.push({ type: 'level', level: g.level, pots: added, festival: festival(g.level).name });
 }
 
 // The tandang struts around, mostly towards food, and never onto you or the cell ahead of your head.

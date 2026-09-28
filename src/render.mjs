@@ -1,6 +1,7 @@
 // Draws the fiesta: a banig mat in a bamboo frame, the snake in flag colors with a salakot, street
 // food, the tinikling poles, and the juice (confetti, popups, shake). Reads the game state only.
 import { FOODS, progress, COMBO_WINDOW, comboMult } from './game.mjs';
+import { festival } from './festivals.mjs';
 
 export const W = 600, H = 708;
 const CELL = 27, N = 20, BX = 30, BY = 114, BOARD = CELL * N;
@@ -16,7 +17,9 @@ const YUM = ['SARAP!', 'Ang sarap!', 'Busog!', 'Yum!', 'Solb!', 'Lodi!'];
 
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
-  const mat = paintMat();
+  const mats = new Map(); // one painted banig per festival
+  const matFor = (f) => { if (!mats.has(f.name)) mats.set(f.name, paintMat(f)); return mats.get(f.name); };
+  const bulges = []; // a lump that travels down the body after each meal
   const parts = [], popups = [];
   let shake = 0, flash = 0, flashColor = '235,111,146', lastT = null, shownScore = 0, deathT = -1, reducedNow = false;
 
@@ -28,7 +31,7 @@ export function createRenderer(canvas) {
   }
 
   // ---------- the banig, painted once ----------
-  function paintMat() {
+  function paintMat(fest) {
     const c = document.createElement('canvas');
     c.width = BOARD; c.height = BOARD;
     const m = c.getContext('2d');
@@ -43,9 +46,9 @@ export function createRenderer(canvas) {
       if (over) m.fillRect(x, y + s - 1, s, 1); else m.fillRect(x + s - 1, y, 1, s);
     }
     // woven colored bands and diamonds, soft so the snake stays readable
-    const bands = [['#c2185b', 2], ['#00897b', 7], ['#f9a825', 12], ['#c2185b', 17]];
+    const bands = fest.bands.map((c, i) => [c, 2 + i * 5]);
     for (const [col, k] of bands) {
-      m.fillStyle = col; m.globalAlpha = 0.16;
+      m.fillStyle = col; m.globalAlpha = 0.24;
       m.fillRect(0, k * CELL + 9, BOARD, 9); m.fillRect(k * CELL + 9, 0, 9, BOARD);
     }
     m.globalAlpha = 0.14;
@@ -58,6 +61,7 @@ export function createRenderer(canvas) {
     m.globalAlpha = 1;
     // faint cell checker so the grid can be read at speed
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if ((x + y) % 2) { m.fillStyle = 'rgba(60,30,10,0.06)'; m.fillRect(x * CELL, y * CELL, CELL, CELL); }
+    if (fest.tint) { m.fillStyle = fest.tint; m.fillRect(0, 0, BOARD, BOARD); }
     return c;
   }
 
@@ -74,6 +78,7 @@ export function createRenderer(canvas) {
   function event(e, g) {
     switch (e.type) {
       case 'eat': {
+        bulges.push({ pos: 0 });
         const x = cx(e.x), y = cy(e.y);
         const special = FOODS[e.food].special;
         confetti(x, y, special ? 40 : 16, special ? FIESTA : ['#fcd116', '#ff9f1c', '#f4f1e8', '#ce1126']);
@@ -104,9 +109,11 @@ export function createRenderer(canvas) {
         flashColor = '235,111,146'; flash = 0.6;
         break;
       case 'level': {
-        popup(`BARANGAY ${e.level}!`, W / 2, BY + BOARD / 2 - 40, '#fcd116', 40);
-        popup('Fiesta na naman!', W / 2, BY + BOARD / 2, '#ff6fb5', 20);
-        for (let k = 0; k < 5; k++) confetti(BX + (k + 0.5) * BOARD / 5, BY + 10, 18, FIESTA, 220);
+        const f = festival(e.level);
+        popup(`BARANGAY ${e.level}!`, W / 2, BY + BOARD / 2 - 52, '#fcd116', 38);
+        popup(`${f.name.toUpperCase()}!`, W / 2, BY + BOARD / 2 - 12, f.flags[0] === '#212121' ? '#ffb300' : f.flags[0], 32);
+        popup(f.place, W / 2, BY + BOARD / 2 + 16, '#fff8e1', 18);
+        for (let k = 0; k < 5; k++) confetti(BX + (k + 0.5) * BOARD / 5, BY + 10, 18, f.flags, 220);
         for (const p of e.pots) for (let i = 0; i < 10; i++) emit({ kind: 'smoke', x: cx(p.x), y: cy(p.y), vx: (Math.random() - 0.5) * 60, vy: -Math.random() * 40, life: 0.6, color: '170,120,80', size: 5 });
         shake = Math.max(shake, 5);
         break;
@@ -185,7 +192,7 @@ export function createRenderer(canvas) {
   }
 
   // ---------- frame, bunting, parols ----------
-  function frame(t, reduced) {
+  function frame(t, reduced, fest) {
     // bamboo frame with nodes
     const f = 18;
     const bamboo = (x, y, w, h, vertical) => {
@@ -211,7 +218,7 @@ export function createRenderer(canvas) {
     for (let k = 0; k < 24; k++) {
       const u = (k + 0.5) / 24, x = u * W, y = 6 + 28 * 2 * u * (1 - u); // on the string's curve
       const flap = reduced ? 0 : Math.sin(t * 4 + k) * 2;
-      ctx.fillStyle = FIESTA[k % FIESTA.length];
+      ctx.fillStyle = fest.flags[k % fest.flags.length];
       ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.lineTo(x + flap, y + 16); ctx.fill();
     }
     parol(22, 58, t, '#fcd116', reduced); parol(W - 22, 58, t, '#ff6fb5', reduced);
@@ -241,7 +248,7 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
     ctx.font = '700 13px "Baloo 2", system-ui, sans-serif'; ctx.fillStyle = '#f4d9ff';
     ctx.fillText(`Haba ${g.snake.length}`, 50, 70);
-    ctx.fillStyle = '#fcd116'; ctx.fillText(`Barangay ${g.level}`, 50, 87);
+    ctx.fillStyle = '#fcd116'; ctx.fillText(`Barangay ${g.level} · ${festival(g.level).name}`, 50, 87);
     ctx.textAlign = 'right'; ctx.fillStyle = '#f4d9ff';
     ctx.fillText(`Best ${Math.max(best, g.score)}`, W - 50, 70);
     ctx.fillStyle = g.wrap ? '#2ec4b6' : g.mode === 'daily' ? '#ff9f1c' : '#d9bfe6';
@@ -372,7 +379,9 @@ export function createRenderer(canvas) {
     // flag bands: red, yellow, white, blue, repeating down the body
     for (let i = pts.length - 1; i >= 1; i--) {
       const c = golden ? (i % 2 ? '#fcd116' : '#ffe98a') : cold ? (i % 2 ? '#bfe6ff' : '#e6f6ff') : FLAG[i % 4];
-      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, CELL * 0.33, 0, Math.PI * 2); ctx.fill();
+      const lump = bulges.reduce((m, b) => Math.max(m, Math.exp(-((i - b.pos) ** 2) / 1.2)), 0);
+      if (lump > 0.05) { ctx.fillStyle = '#2a1030'; ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, CELL * (0.43 + lump * 0.14), 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, CELL * (0.33 + lump * 0.12), 0, Math.PI * 2); ctx.fill();
       if (!golden && !cold && i % 4 === 3) { ctx.fillStyle = '#fcd116'; star(pts[i].x, pts[i].y, 4, 1.8, 5); } // little stars on the white bands
     }
     path(); ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = CELL * 0.18; ctx.save(); ctx.translate(-2, -3); ctx.stroke(); ctx.restore();
@@ -499,8 +508,10 @@ export function createRenderer(canvas) {
     ctx.setTransform(k, 0, 0, canvas.height / H, 0, 0);
     ctx.clearRect(0, 0, W, H);
     if (shake > 0 && !reduced) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-    frame(t, reduced);
-    ctx.drawImage(mat, BX, BY);
+    const fest = festival(g.level);
+    frame(t, reduced, fest);
+    ctx.drawImage(matFor(fest), BX, BY);
+    for (let i = bulges.length - 1; i >= 0; i--) { bulges[i].pos += dt * 22; if (bulges[i].pos > g.snake.length + 2) bulges.splice(i, 1); }
     if (g.effects.halo > 0) { ctx.fillStyle = 'rgba(160,210,255,0.14)'; ctx.fillRect(BX, BY, BOARD, BOARD); }
     if (g.effects.sili > 0) { ctx.fillStyle = 'rgba(255,90,40,0.08)'; ctx.fillRect(BX, BY, BOARD, BOARD); }
     if (g.wrap) {
@@ -526,7 +537,7 @@ export function createRenderer(canvas) {
     drawPopups();
   }
 
-  function reset() { parts.length = 0; popups.length = 0; shownScore = 0; deathT = -1; shake = 0; flash = 0; }
+  function reset() { parts.length = 0; popups.length = 0; bulges.length = 0; shownScore = 0; deathT = -1; shake = 0; flash = 0; }
 
   return { draw, resize, event, reset };
 }

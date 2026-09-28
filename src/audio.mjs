@@ -6,7 +6,7 @@ const LOOP = [0, 4, 2, 4, 3, 4, 2, 1, 0, 4, 2, 4, 5, 4, 3, 2];
 const STEP = 60 / 112 / 2;
 
 export function createAudio() {
-  let ctx = null, master = null, music = null, noise = null, muted = false, playing = false, step = 0, nextAt = 0, fast = 1;
+  let ctx = null, master = null, music = null, noise = null, muted = false, musicOn = true, playing = false, step = 0, nextAt = 0, fast = 1;
 
   function start() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
@@ -40,7 +40,7 @@ export function createAudio() {
   }
 
   function schedule() {
-    if (!ctx || muted) { if (ctx) nextAt = ctx.currentTime + 0.1; return; }
+    if (!ctx || muted || !musicOn) { if (ctx) nextAt = ctx.currentTime + 0.1; return; }
     const stepLen = STEP / fast;
     while (nextAt < ctx.currentTime + 0.25) {
       const rel = Math.max(0, nextAt - ctx.currentTime), b = step % 16;
@@ -56,6 +56,7 @@ export function createAudio() {
     get muted() { return muted; },
     setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.7; },
     set(isPlaying, tempo = 1) { playing = isPlaying; fast = tempo; },
+    setMusic(on) { musicOn = on; },
     eat(combo, special) {
       const n = SCALE[Math.min(SCALE.length - 1, combo)];
       gong(NOTE(72 + n), 0, 0.12, 0.7);

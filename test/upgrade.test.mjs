@@ -1,7 +1,7 @@
 // v1.1: modes, barangay levels with banga pots, the tandang, the anting-anting shield, daily seeds and medals.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, step, turn, interval, LEVEL_MEALS, dailySeed } from '../src/game.mjs';
+import { createGame, step, turn, interval, LEVEL_MEALS, dailySeed, festival, FESTIVALS } from '../src/game.mjs';
 import { MEDALS, earned } from '../src/medals.mjs';
 
 const bare = (over = {}, opts = {}) => {
@@ -113,4 +113,23 @@ test('medals are earned from what happened in a game', () => {
   g.counts.balut = 1; g.bestCombo = 5; g.level = 5; g.claps = 5;
   const e = earned(g);
   for (const id of ['suwerte', 'sunod-sunod', 'barangay-5', 'tinikling']) assert.ok(e.includes(id), id);
+});
+
+test('each barangay is a festival, cycling after the last one', () => {
+  assert.equal(festival(1).name, 'Fiesta');
+  const names = new Set();
+  for (let l = 1; l <= FESTIVALS.length; l++) names.add(festival(l).name);
+  assert.equal(names.size, FESTIVALS.length, 'every level up to the cycle is a different festival');
+  assert.equal(festival(FESTIVALS.length + 1).name, festival(1).name, 'then it cycles');
+  for (const f of FESTIVALS) {
+    assert.ok(f.place && f.bands.length === 4 && f.flags.length >= 5, f.name);
+  }
+});
+
+test('level events carry the festival', () => {
+  const g = bare();
+  g.snake = [{ x: 2, y: 10 }, { x: 1, y: 10 }, { x: 0, y: 10 }];
+  const ev = [];
+  for (let i = 0; i < LEVEL_MEALS; i++) ev.push(...feed(g));
+  assert.equal(ev.find((e) => e.type === 'level').festival, festival(2).name);
 });

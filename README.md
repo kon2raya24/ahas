@@ -26,11 +26,13 @@ Classic snake at a Pinoy fiesta. Steer a flag-colored snake in a salakot across 
 
 Eat again within 2.5 s to build a **sunod-sunod** combo (up to ×4). The bonuses stack.
 
-Every 8 meals is a new **barangay**. Each one adds banga (clay pots) to steer around, and from barangay 2 a **tandang** (rooster) struts around pecking your fishball before you can. Don't run into either.
+Every 8 meals is a new **barangay**, and each barangay is a real Philippine festival with its own banig colors and bunting: Pahiyas (Lucban), Sinulog (Cebu), Panagbenga (Baguio), MassKara (Bacolod), Ati-Atihan (Kalibo) and Kadayawan (Davao). Each one also adds banga (clay pots) to steer around, and from barangay 2 a **tandang** (rooster) struts around pecking your fishball before you can. Don't run into either.
 
 After six meals, the **tinikling** starts. A row or column turns red, the bamboo poles tap twice, then clap. If your head is in the line, it's game over. If only your body is, the poles snip your tail and cost 5 points per segment.
 
-Ten **medalya** unlock as you play: Unang Kagat, Busog, Tinikling Master, Sanlibo and more. Each mode keeps a top 5, and **I-share** copies your score to paste anywhere.
+Ten **medalya** unlock as you play: Unang Kagat, Busog, Tinikling Master, Sanlibo and more. Each mode keeps a top 5, and **I-share** copies your score to paste anywhere. Sound and music toggle separately, and your first game shows short hints.
+
+**Install it:** on a phone, use *Add to Home Screen*. It works offline after the first visit.
 
 ## Run locally
 
@@ -49,7 +51,8 @@ Tests (Node 20+): `node --test test/*.test.mjs`
 - `src/render.mjs` draws everything on a canvas: the banig (painted once), the bamboo frame, bunting, parols, food sprites, the snake with smooth interpolation, the poles, confetti and popups.
 - `src/audio.mjs` makes kulintang-style gongs, bamboo clicks and a fiesta loop with Web Audio.
 - `src/bot.mjs` plays the title screen and doubles as a playtest in the tests, in every mode.
-- `src/medals.mjs` works out medals from a finished game state.
+- `src/medals.mjs` works out medals from a finished game state, and `src/festivals.mjs` holds the festival themes.
+- `sw.js` precaches everything for offline play. Bump its `VERSION` whenever a file changes, and a test checks that every module is in its list.
 
 Made by [Lemmuel Turaya](https://kon2raya.netlify.app).
 
