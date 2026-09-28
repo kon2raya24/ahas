@@ -2,6 +2,8 @@
 
 Classic snake at a Pinoy fiesta. Steer a flag-colored snake in a salakot across a woven banig mat, eat street food, and keep your head out of the tinikling poles.
 
+**Play:** https://ahas-sa-fiesta.vercel.app · https://kon2raya24.github.io/ahas/
+
 ## How to play
 
 - **Arrow keys / WASD** steer, or swipe on a phone (there's a d-pad too). Two quick turns are both remembered, so corners feel tight.
