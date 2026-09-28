@@ -4,7 +4,8 @@ const DIRS = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
 
 export function bot(g) {
   const h = g.snake[0];
-  const body = new Set(g.snake.slice(0, -1).map((p) => p.y * g.cols + p.x));
+  // the tail only moves out of the way when the snake isn't growing
+  const body = new Set((g.grow > 0 ? g.snake : g.snake.slice(0, -1)).map((p) => p.y * g.cols + p.x));
   const inside = (x, y) => x >= 0 && y >= 0 && x < g.cols && y < g.rows;
   const blocked = (x, y) => !inside(x, y) || body.has(y * g.cols + x);
   const danger = (x, y) => g.pole && g.pole.warn > 0 && (g.pole.axis === 'row' ? y === g.pole.index : x === g.pole.index);

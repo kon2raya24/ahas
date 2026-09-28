@@ -220,18 +220,20 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
     // active effects as chips under the score
     const chips = [];
+    if (!g.alive) return;
     if (g.effects.balut > 0) chips.push(['Balut ×2', '#fcd116', g.effects.balut / FOODS.balut.dur]);
     if (g.effects.sili > 0) chips.push(['Sili ×2 bilis', '#ff4d4d', g.effects.sili / FOODS.sili.dur]);
     if (g.effects.halo > 0) chips.push(['Halo-halo bagal', '#9ad7ff', g.effects.halo / FOODS.halohalo.dur]);
     if (g.combo >= 2) chips.push([`Sunod-sunod ×${comboMult(g.combo)}`, '#ff6fb5', clamp(1 - (g.t - g.lastEat) / COMBO_WINDOW, 0, 1)]);
-    // below the board, so they never cover play
-    let x = W / 2 - chips.length * 64;
+    // below the board, left of the pause button, so they never cover play
+    const cw = Math.min(122, (W - 150) / Math.max(1, chips.length) - 6);
+    let x = (W - 110) / 2 - (chips.length * (cw + 6) - 6) / 2;
     const y = BY + BOARD + 26;
     for (const [label, color, frac] of chips) {
-      ctx.fillStyle = 'rgba(30,12,40,0.8)'; roundRect(x, y, 122, 22, 11); ctx.fill();
-      ctx.fillStyle = hexA(color, 0.4); roundRect(x, y, 122 * frac, 22, 11); ctx.fill();
-      ctx.fillStyle = color; ctx.font = '800 12px "Baloo 2", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(label, x + 61, y + 15); ctx.textAlign = 'left';
-      x += 128;
+      ctx.fillStyle = 'rgba(30,12,40,0.8)'; roundRect(x, y, cw, 22, 11); ctx.fill();
+      ctx.fillStyle = hexA(color, 0.4); roundRect(x, y, cw * frac, 22, 11); ctx.fill();
+      ctx.fillStyle = color; ctx.font = `800 ${cw < 115 ? 11 : 12}px "Baloo 2", system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(label, x + cw / 2, y + 15); ctx.textAlign = 'left';
+      x += cw + 6;
     }
   }
 
