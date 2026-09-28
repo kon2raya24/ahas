@@ -103,11 +103,33 @@ export function createRenderer(canvas) {
         popup(`NAIPIT! −${e.lost * 5}`, W / 2, BY + 40, '#ff6b6b', 24);
         flashColor = '235,111,146'; flash = 0.6;
         break;
+      case 'level': {
+        popup(`BARANGAY ${e.level}!`, W / 2, BY + BOARD / 2 - 40, '#fcd116', 40);
+        popup('Fiesta na naman!', W / 2, BY + BOARD / 2, '#ff6fb5', 20);
+        for (let k = 0; k < 5; k++) confetti(BX + (k + 0.5) * BOARD / 5, BY + 10, 18, FIESTA, 220);
+        for (const p of e.pots) for (let i = 0; i < 10; i++) emit({ kind: 'smoke', x: cx(p.x), y: cy(p.y), vx: (Math.random() - 0.5) * 60, vy: -Math.random() * 40, life: 0.6, color: '170,120,80', size: 5 });
+        shake = Math.max(shake, 5);
+        break;
+      }
+      case 'rooster':
+        popup('Tiktilaok!', cx(e.x), cy(e.y) - 18, '#ffb36b', 20);
+        break;
+      case 'peck':
+        for (let i = 0; i < 10; i++) emit({ kind: 'feather', x: cx(e.x), y: cy(e.y), vx: (Math.random() - 0.5) * 80, vy: -30 - Math.random() * 60, g: 60, life: 1, color: pick(['#c0392b', '#e67e22', '#1e8449', '#f4f1e8']), size: 3, vr: (Math.random() - 0.5) * 8 });
+        popup('Naunahan ka!', cx(e.x), cy(e.y) - 16, '#ffb36b', 18);
+        break;
+      case 'shield': {
+        const h = g.snake[0];
+        for (let i = 0; i < 30; i++) { const a = (i / 30) * Math.PI * 2; emit({ kind: 'spark', x: cx(h.x), y: cy(h.y), vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, life: 0.6, color: '#fcd116', size: 2.5 }); }
+        popup('ANTING-ANTING!', cx(h.x), cy(h.y) - 30, '#fcd116', 24);
+        flashColor = '252,209,22'; flash = 0.7; shake = Math.max(shake, 6);
+        break;
+      }
       case 'die': {
         deathT = 0;
         shake = reducedNow ? 0 : 14; flashColor = '235,60,60'; flash = 1;
         g.snake.forEach((p, i) => setTimeout(() => confetti(cx(p.x), cy(p.y), 6, FLAG, 140), i * 18));
-        popup(e.by === 'kawayan' ? 'Naipit ng kawayan!' : e.by === 'pader' ? 'Bangga!' : 'Nakagat ang sarili!', W / 2, BY + BOARD / 2 - 20, '#fff8e1', 26);
+        popup({ kawayan: 'Naipit ng kawayan!', pader: 'Bangga!', banga: 'Basag ang banga!', manok: 'Tinuka ng tandang!' }[e.by] || 'Nakagat ang sarili!', W / 2, BY + BOARD / 2 - 20, '#fff8e1', 26);
         break;
       }
       default: break;
@@ -131,7 +153,11 @@ export function createRenderer(canvas) {
   function drawParts() {
     for (const p of parts) {
       const a = clamp(p.life / p.max * 1.5, 0, 1);
-      if (p.kind === 'confetti' || p.kind === 'chip') {
+      if (p.kind === 'feather') {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = a;
+        ctx.fillStyle = p.color; ctx.beginPath(); ctx.ellipse(0, 0, p.size * 2, p.size * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      } else if (p.kind === 'confetti' || p.kind === 'chip') {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = a;
         ctx.fillStyle = p.color; ctx.fillRect(-p.size, -p.size * 0.5, p.size * 2, p.size);
         ctx.restore();
@@ -214,9 +240,12 @@ export function createRenderer(canvas) {
     ctx.strokeText(String(Math.round(shownScore)), W / 2, 84); ctx.fillStyle = '#fcd116'; ctx.fillText(String(Math.round(shownScore)), W / 2, 84);
     ctx.textAlign = 'left';
     ctx.font = '700 13px "Baloo 2", system-ui, sans-serif'; ctx.fillStyle = '#f4d9ff';
-    ctx.fillText(`Haba ${g.snake.length}`, 50, 76);
-    ctx.textAlign = 'right';
-    ctx.fillText(`Best ${Math.max(best, g.score)}`, W - 50, 76);
+    ctx.fillText(`Haba ${g.snake.length}`, 50, 70);
+    ctx.fillStyle = '#fcd116'; ctx.fillText(`Barangay ${g.level}`, 50, 87);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#f4d9ff';
+    ctx.fillText(`Best ${Math.max(best, g.score)}`, W - 50, 70);
+    ctx.fillStyle = g.wrap ? '#2ec4b6' : g.mode === 'daily' ? '#ff9f1c' : '#d9bfe6';
+    ctx.fillText({ klasiko: 'Klasiko', walangpader: 'Walang Pader', daily: 'Araw-araw' }[g.mode] || '', W - 50, 87);
     ctx.textAlign = 'left';
     // active effects as chips under the score
     const chips = [];
@@ -224,7 +253,8 @@ export function createRenderer(canvas) {
     if (g.effects.balut > 0) chips.push(['Balut ×2', '#fcd116', g.effects.balut / FOODS.balut.dur]);
     if (g.effects.sili > 0) chips.push(['Sili ×2 bilis', '#ff4d4d', g.effects.sili / FOODS.sili.dur]);
     if (g.effects.halo > 0) chips.push(['Halo-halo bagal', '#9ad7ff', g.effects.halo / FOODS.halohalo.dur]);
-    if (g.combo >= 2) chips.push([`Sunod-sunod ×${comboMult(g.combo)}`, '#ff6fb5', clamp(1 - (g.t - g.lastEat) / COMBO_WINDOW, 0, 1)]);
+    if (g.shield) chips.push(['Anting-anting', '#fcd116', 1]);
+    if (g.combo >= 2) chips.push([`Sunod-sunod ${g.combo}${comboMult(g.combo) > 1 ? ` ×${comboMult(g.combo)}` : ''}`, '#ff6fb5', clamp(1 - (g.t - g.lastEat) / COMBO_WINDOW, 0, 1)]);
     // below the board, left of the pause button, so they never cover play
     const cw = Math.min(122, (W - 150) / Math.max(1, chips.length) - 6);
     let x = (W - 110) / 2 - (chips.length * (cw + 6) - 6) / 2;
@@ -246,7 +276,7 @@ export function createRenderer(canvas) {
     if (def.special) {
       const warn = f.life < 2.2 && !reduced && Math.sin(t * 20) > 0;
       const g = ctx.createRadialGradient(x, y, 2, x, y, 22);
-      g.addColorStop(0, f.type === 'halohalo' ? 'rgba(150,210,255,0.55)' : f.type === 'sili' ? 'rgba(255,80,40,0.5)' : 'rgba(252,209,22,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      g.addColorStop(0, f.type === 'anting' ? 'rgba(255,240,150,0.6)' : f.type === 'halohalo' ? 'rgba(150,210,255,0.55)' : f.type === 'sili' ? 'rgba(255,80,40,0.5)' : 'rgba(252,209,22,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.fillRect(x - 22, y - 22, 44, 44);
       ctx.strokeStyle = warn ? '#ffffff' : '#fff8e1'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(x, y, 14, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (f.life / def.life)); ctx.stroke();
@@ -282,6 +312,14 @@ export function createRenderer(canvas) {
         ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(-1, -5, 1.5, 6);
         break;
       }
+      case 'anting': {
+        ctx.strokeStyle = '#8a6a2c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -10); ctx.lineTo(0, -5); ctx.lineTo(6, -10); ctx.stroke();
+        ctx.fillStyle = '#e0a526'; ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(-8, -5); ctx.lineTo(8, -5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#fcd116'; ctx.beginPath(); ctx.moveTo(0, 7); ctx.lineTo(-5.5, -3.5); ctx.lineTo(5.5, -3.5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#fff8e1'; ctx.beginPath(); ctx.ellipse(0, -0.5, 3, 1.8, 0, 0, Math.PI * 2); ctx.fill(); // the all-seeing eye
+        ctx.fillStyle = '#2a1030'; ctx.beginPath(); ctx.arc(0, -0.5, 1, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
       case 'halohalo': {
         ctx.fillStyle = 'rgba(220,240,255,0.55)'; ctx.beginPath(); ctx.moveTo(-8, -4); ctx.lineTo(8, -4); ctx.lineTo(5, 10); ctx.lineTo(-5, 10); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#7b3fa0'; ctx.beginPath(); ctx.arc(0, -5, 7, Math.PI, 0); ctx.fill(); // ube
@@ -310,13 +348,22 @@ export function createRenderer(canvas) {
     const a = dead ? 1 : progress(g);
     const pts = g.snake.map((p, i) => {
       const q = g.prev[i] || p;
+      // a wrap jumps across the board, so snap instead of sliding
+      if (Math.abs(q.x - p.x) + Math.abs(q.y - p.y) > 1) return { x: cx(p.x), y: cy(p.y) };
       return { x: cx(lerp(q.x, p.x, a)), y: cy(lerp(q.y, p.y, a)) };
     });
     if (!pts.length) return;
     const golden = g.effects.balut > 0, hot = g.effects.sili > 0, cold = g.effects.halo > 0;
     const hide = dead && deathT > 0.05;
     if (hide) return;
-    const path = () => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); };
+    const path = () => {
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        const far = Math.abs(pts[i].x - pts[i - 1].x) + Math.abs(pts[i].y - pts[i - 1].y) > CELL * 1.6;
+        if (far) ctx.moveTo(pts[i].x, pts[i].y); else ctx.lineTo(pts[i].x, pts[i].y);
+      }
+    };
+    if (g.phase > 0) ctx.globalAlpha = reduced ? 0.55 : 0.35 + 0.25 * Math.abs(Math.sin(t * 14));
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     // shadow, outline, body
     ctx.save(); ctx.translate(2, 4); path(); ctx.strokeStyle = 'rgba(60,30,10,0.25)'; ctx.lineWidth = CELL * 0.82; ctx.stroke(); ctx.restore();
@@ -332,6 +379,40 @@ export function createRenderer(canvas) {
     if (hot && !reduced && Math.random() < 0.7) emit({ kind: 'flame', x: pts[0].x + (Math.random() - 0.5) * 8, y: pts[0].y + (Math.random() - 0.5) * 8, vx: (Math.random() - 0.5) * 30, vy: -40 - Math.random() * 40, life: 0.35, color: pick(['#ff4d1a', '#ff9f1c', '#fcd116']), size: 4 });
     if (cold && !reduced && Math.random() < 0.3) emit({ kind: 'spark', x: pts[0].x + (Math.random() - 0.5) * 20, y: pts[0].y + (Math.random() - 0.5) * 20, vx: 0, vy: 10, life: 0.6, color: '#e6f6ff', size: 1.6 });
     head(pts[0], g, t, reduced, hot, golden);
+    ctx.globalAlpha = 1;
+    if (g.shield) {
+      const r = CELL * (0.8 + (reduced ? 0 : 0.08 * Math.sin(t * 6)));
+      ctx.strokeStyle = 'rgba(252,209,22,0.8)'; ctx.lineWidth = 2.5; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -t * 20;
+      ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
+  // ---------- banga and the tandang ----------
+  function pot(p) {
+    const x = cx(p.x), y = cy(p.y);
+    ctx.fillStyle = 'rgba(60,30,10,0.3)'; ctx.beginPath(); ctx.ellipse(x + 1, y + 11, 11, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(x - 4, y - 2, 1, x, y + 2, 14);
+    g.addColorStop(0, '#d98a52'); g.addColorStop(1, '#8a4a22');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y + 2, 11, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7a3e1a'; ctx.fillRect(x - 6, y - 10, 12, 5); // neck
+    ctx.fillStyle = '#a85a2c'; ctx.fillRect(x - 8, y - 12, 16, 3); // rim
+    ctx.strokeStyle = 'rgba(255,230,190,0.5)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x - 9, y + 2); ctx.quadraticCurveTo(x, y + 6, x + 9, y + 2); ctx.stroke(); // painted band
+  }
+
+  function tandang(r, t, reduced) {
+    const x = cx(r.x), y = cy(r.y);
+    const bob = reduced ? 0 : Math.abs(Math.sin(t * 9)) * 2;
+    ctx.save(); ctx.translate(x, y - bob); if (r.dir.x < 0) ctx.scale(-1, 1);
+    ctx.fillStyle = 'rgba(60,30,10,0.3)'; ctx.beginPath(); ctx.ellipse(0, 12 + bob, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#e0a526'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-2, 6); ctx.lineTo(-3, 12 + bob); ctx.moveTo(2, 6); ctx.lineTo(3, 12 + bob); ctx.stroke(); // legs
+    for (const [c, a] of [['#1e8449', -2.3], ['#1a5276', -2.0], ['#111', -1.7]]) { ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(-5, 0, 8, a, a + 0.9); ctx.stroke(); } // tail
+    ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.ellipse(0, 1, 8, 6.5, 0, 0, Math.PI * 2); ctx.fill(); // body
+    ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.ellipse(1, 2, 5, 3.5, -0.2, 0, Math.PI * 2); ctx.fill(); // wing
+    ctx.fillStyle = '#d35400'; ctx.beginPath(); ctx.arc(6, -5, 4, 0, Math.PI * 2); ctx.fill(); // head
+    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(5, -9.5, 1.8, 0, Math.PI * 2); ctx.arc(7.5, -9.8, 1.8, 0, Math.PI * 2); ctx.fill(); // comb
+    ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.moveTo(9.5, -5.5); ctx.lineTo(13, -4.5); ctx.lineTo(9.5, -3.5); ctx.fill(); // beak
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(7, -6, 0.9, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   function head(p, g, t, reduced, hot, golden) {
@@ -422,7 +503,20 @@ export function createRenderer(canvas) {
     ctx.drawImage(mat, BX, BY);
     if (g.effects.halo > 0) { ctx.fillStyle = 'rgba(160,210,255,0.14)'; ctx.fillRect(BX, BY, BOARD, BOARD); }
     if (g.effects.sili > 0) { ctx.fillStyle = 'rgba(255,90,40,0.08)'; ctx.fillRect(BX, BY, BOARD, BOARD); }
+    if (g.wrap) {
+      // walang pader: the frame is open, so its inner edge glows
+      const glow = reduced ? 0.85 : 0.6 + 0.3 * Math.sin(t * 3);
+      ctx.shadowColor = '#2ec4b6'; ctx.shadowBlur = 10;
+      ctx.strokeStyle = `rgba(46,196,182,${glow})`; ctx.lineWidth = 4; ctx.setLineDash([12, 8]); ctx.lineDashOffset = reduced ? 0 : -t * 14;
+      ctx.strokeRect(BX + 2, BY + 2, BOARD - 4, BOARD - 4); ctx.setLineDash([]); ctx.shadowBlur = 0;
+      // arrows on the frame: out one side, in the other
+      ctx.fillStyle = `rgba(160,255,240,${glow})`; ctx.font = '900 14px "Baloo 2", system-ui, sans-serif'; ctx.textAlign = 'center';
+      for (const [x, y] of [[BX + BOARD / 2, BY - 5], [BX + BOARD / 2, BY + BOARD + 14], [BX - 9, BY + BOARD / 2 + 5], [BX + BOARD + 9, BY + BOARD / 2 + 5]]) ctx.fillText(x === BX + BOARD / 2 ? '⇅' : '⇆', x, y);
+      ctx.textAlign = 'left';
+    }
+    for (const p of g.pots) pot(p);
     for (const f of g.foods) food(f, t, reduced);
+    if (g.rooster) tandang(g.rooster, t, reduced);
     snake(g, t, reduced, !g.alive);
     poles(g, t, reduced);
     drawParts();

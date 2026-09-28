@@ -68,5 +68,20 @@ export function createAudio() {
     clap() { click(0, 1200, 0.5, 0.09); click(0.01, 600, 0.3, 0.12); },
     cut() { gong(NOTE(50), 0, 0.12, 0.8); },
     die() { [67, 64, 60, 55, 48].forEach((n, i) => gong(NOTE(n), i * 0.13, 0.1, 1)); },
+    level() { [0, 2, 4, 7, 9, 12].forEach((k, i) => gong(NOTE(72 + k), i * 0.08, 0.09, 0.9)); gong(NOTE(48), 0, 0.12, 1.6); },
+    // tik-ti-la-ok: four rising and falling squawks
+    crow() {
+      if (!ctx || muted) return;
+      [[700, 900, 0.09], [800, 1100, 0.08], [900, 1300, 0.1], [1300, 700, 0.35]].reduce((when, [f0, f1, d]) => {
+        const t = ctx.currentTime + when, o = ctx.createOscillator(), v = ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + d);
+        v.gain.setValueAtTime(0.0001, t); v.gain.exponentialRampToValueAtTime(0.035, t + 0.02); v.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.connect(v).connect(master); o.start(t); o.stop(t + d + 0.02);
+        return when + d + 0.03;
+      }, 0);
+    },
+    peck() { click(0, 3000, 0.2, 0.03); click(0.07, 3000, 0.15, 0.03); },
+    shield() { [0, 4, 7, 12, 16].forEach((k, i) => gong(NOTE(84 + k), i * 0.04, 0.07, 0.8)); },
+    medal() { [0, 7, 12].forEach((k, i) => gong(NOTE(79 + k), i * 0.12, 0.08, 1)); },
   };
 }

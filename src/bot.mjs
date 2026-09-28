@@ -5,9 +5,12 @@ const DIRS = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
 export function bot(g) {
   const h = g.snake[0];
   // the tail only moves out of the way when the snake isn't growing
-  const body = new Set((g.grow > 0 ? g.snake : g.snake.slice(0, -1)).map((p) => p.y * g.cols + p.x));
+  const body = new Set([...(g.grow > 0 ? g.snake : g.snake.slice(0, -1)), ...g.pots].map((p) => p.y * g.cols + p.x));
+  if (g.rooster) body.add(g.rooster.y * g.cols + g.rooster.x);
+  const wrap = (x, y) => (g.wrap ? [(x + g.cols) % g.cols, (y + g.rows) % g.rows] : [x, y]);
   const inside = (x, y) => x >= 0 && y >= 0 && x < g.cols && y < g.rows;
-  const blocked = (x, y) => !inside(x, y) || body.has(y * g.cols + x);
+  const blocked = (x0, y0) => { const [x, y] = wrap(x0, y0); return !inside(x, y) || body.has(y * g.cols + x); };
+  const nearRooster = (x, y) => g.rooster && Math.abs(g.rooster.x - x) + Math.abs(g.rooster.y - y) <= 1;
   const danger = (x, y) => g.pole && g.pole.warn > 0 && (g.pole.axis === 'row' ? y === g.pole.index : x === g.pole.index);
   // cells reachable from a start, capped for speed
   const room = (sx, sy) => {
@@ -15,7 +18,7 @@ export function bot(g) {
     while (todo.length && seen.size < g.snake.length + 10) {
       const [x, y] = todo.pop();
       for (const d of DIRS) {
-        const nx = x + d.x, ny = y + d.y, k = ny * g.cols + nx;
+        const [nx, ny] = wrap(x + d.x, y + d.y), k = ny * g.cols + nx;
         if (!blocked(nx, ny) && !seen.has(k)) { seen.add(k); todo.push([nx, ny]); }
       }
     }
@@ -25,11 +28,12 @@ export function bot(g) {
   let best = null, bestScore = -Infinity;
   for (const d of DIRS) {
     if (d.x === -g.dir.x && d.y === -g.dir.y) continue;
-    const x = h.x + d.x, y = h.y + d.y;
+    const [x, y] = wrap(h.x + d.x, h.y + d.y);
     if (blocked(x, y)) continue;
     let score = Math.min(room(x, y), g.snake.length + 10) * 10;
     if (target) score -= dist({ x, y }, target) * 3;
     if (danger(x, y)) score -= 400;
+    if (nearRooster(x, y)) score -= 60;
     if (d.x === g.dir.x && d.y === g.dir.y) score += 1;
     if (score > bestScore) { bestScore = score; best = d; }
   }

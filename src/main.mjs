@@ -1,9 +1,10 @@
-// The page: screens, input (keys, swipes, d-pad), the loop, sound and the best score. Rules live in
-// game.mjs.
-import { createGame, step, turn, interval, FOODS, BASE_INTERVAL } from './game.mjs';
+// The page: screens, modes, input (keys, swipes, d-pad), the loop, sound, scores, medals and sharing.
+// Rules live in game.mjs.
+import { createGame, step, turn, interval, FOODS, BASE_INTERVAL, MODES, dailySeed } from './game.mjs';
 import { bot } from './bot.mjs';
 import { createRenderer } from './render.mjs';
 import { createAudio } from './audio.mjs';
+import { MEDALS, earned } from './medals.mjs';
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.get('test') === '1';
@@ -13,18 +14,28 @@ const store = {
   get() { if (TEST) return null; try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } },
   set(v) { if (TEST) return; try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* storage unavailable: play on */ } },
 };
+// Saves from v1 only had { best, muted }; the old best becomes the first Klasiko score.
 const saved = store.get() || {};
-let best = Number(saved.best) || 0;
-let muted = !!saved.muted;
-const persist = () => store.set({ best, muted });
+const data = {
+  muted: !!saved.muted,
+  mode: MODES[saved.mode] ? saved.mode : 'klasiko',
+  scores: { klasiko: [], walangpader: [], ...(saved.scores || {}) },
+  daily: saved.daily || { day: 0, best: 0 },
+  medals: Array.isArray(saved.medals) ? saved.medals : [],
+};
+if (!saved.scores && Number(saved.best) > 0) data.scores.klasiko.push({ score: Number(saved.best), len: 0, day: 0 });
+const persist = () => store.set(data);
+const today = () => dailySeed(new Date());
+const bestFor = (m) => (m === 'daily' ? (data.daily.day === today() ? data.daily.best : 0) : data.scores[m][0]?.score || 0);
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-const seed = () => (TEST && Q.get('seed') ? Number(Q.get('seed')) : Math.floor(Math.random() * 1e9));
+const randomSeed = () => (TEST && Q.get('seed') ? Number(Q.get('seed')) : Math.floor(Math.random() * 1e9));
+const buzz = (p) => { try { if (navigator.vibrate && matchMedia('(pointer: coarse)').matches) navigator.vibrate(p); } catch { /* no haptics */ } };
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('board');
 const R = createRenderer(canvas);
 const A = createAudio();
-A.setMuted(muted);
+A.setMuted(data.muted);
 
 const DIR = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 const TIPS = [
@@ -33,52 +44,142 @@ const TIPS = [
   'Eat again within 2.5 seconds to keep the sunod-sunod combo going.',
   'Balut is worth 50, and doubles everything for 8 seconds.',
   'When a line turns red, the tinikling poles are coming. Get your head out!',
-  'The poles only cut your tail if your head is safe.',
+  'The anting-anting saves you from one crash. Grab it before a tricky stretch.',
+  'The tandang goes for your fishball. Beat him to it!',
+  'Every 8 meals is a new barangay, with more banga in the way.',
+  'In Walang Pader you can slip out one side and in the other.',
 ];
+const CAUSE = {
+  kawayan: 'Naipit ng kawayan. The tinikling got you.',
+  pader: 'Bangga sa pader. You hit the frame.',
+  banga: 'Basag ang banga. You crashed into a clay pot.',
+  manok: 'Tinuka ng tandang. You ran into the rooster.',
+  sarili: 'Nakagat mo ang sarili mo. You bit your own tail.',
+};
 
-let mode = 'title', game = null, demo = createGame({ seed: seed() }), readyT = 0, overAt = 0, think = true, lastBeat = -1;
+let mode = 'title', game = null, demo = createGame({ seed: randomSeed() }), readyT = 0, overAt = 0, think = true, lastBeat = -1, newMedals = [];
 
 function show(name) {
-  for (const id of ['title', 'pause', 'over']) $(id).hidden = id !== name;
+  for (const id of ['title', 'pause', 'over', 'medals']) $(id).hidden = id !== name;
   $('pause-btn').hidden = name !== null;
-  const first = name && $(name).querySelector('button');
+  const first = name && ($(name).querySelector('button.primary') || $(name).querySelector('button'));
   if (first) first.focus({ preventScroll: true });
 }
 
 function start() {
   A.start();
-  game = createGame({ seed: seed() });
+  const m = data.mode;
+  game = createGame({ seed: m === 'daily' && !(TEST && Q.get('seed')) ? today() : randomSeed(), mode: m });
   R.reset();
-  readyT = 1.1; think = true; lastBeat = -1;
+  readyT = 1.1; think = true; lastBeat = -1; newMedals = [];
   mode = 'play';
   show(null);
+}
+
+function record(g) {
+  if (g.mode === 'daily') {
+    if (data.daily.day !== today()) data.daily = { day: today(), best: 0 };
+    const isBest = g.score > data.daily.best;
+    if (isBest) data.daily.best = g.score;
+    return isBest && g.score > 0;
+  }
+  const list = data.scores[g.mode];
+  const isBest = g.score > (list[0]?.score || 0);
+  list.push({ score: g.score, len: g.snake.length, day: today() });
+  list.sort((a, b) => b.score - a.score);
+  list.length = Math.min(list.length, 5);
+  return isBest && g.score > 0;
 }
 
 function gameOver() {
   mode = 'over';
   const g = game;
-  const isBest = g.score > best;
-  if (isBest) { best = g.score; persist(); }
-  $('over-cause').textContent = g.deathBy === 'kawayan' ? 'Naipit ng kawayan. The tinikling got you.' : g.deathBy === 'pader' ? 'Bangga sa pader. You hit the frame.' : 'Nakagat mo ang sarili mo. You bit your own tail.';
+  const isBest = record(g);
+  checkMedals(g);
+  persist();
+  $('over-cause').textContent = CAUSE[g.deathBy] || CAUSE.sarili;
   $('over-score').textContent = g.score;
-  $('over-best').textContent = isBest ? 'Bagong best! New best!' : `Best: ${best}`;
+  $('over-best').textContent = isBest ? 'Bagong best! New best!' : `Best${g.mode === 'daily' ? ' today' : ''}: ${bestFor(g.mode)}`;
   $('over-best').classList.toggle('new', isBest);
   const eaten = Object.entries(g.counts).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${FOODS[k].name} ×${n}`).join(' · ');
-  $('over-stats').textContent = [`Haba ${g.snake.length}`, `best combo ${g.bestCombo}`, g.cuts ? `naipit ${g.cuts}×` : null].filter(Boolean).join(' · ');
+  $('over-stats').textContent = [MODES[g.mode], `Barangay ${g.level}`, `Haba ${g.snake.length}`, `best combo ${g.bestCombo}`, g.cuts ? `naipit ${g.cuts}×` : null, g.pecks ? `naunahan ${g.pecks}×` : null].filter(Boolean).join(' · ');
   $('over-food').textContent = eaten || 'Walang nakain. Nothing eaten, gutom pa!';
+  $('over-medals').textContent = newMedals.length ? `Bagong medalya: ${newMedals.map((id) => MEDALS.find((m) => m.id === id).name).join(', ')}` : '';
   $('over-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+  renderBoard($('over-top'), g.mode, g.score);
+  $('share').textContent = 'I-share · Share';
   show('over');
+}
+
+function renderBoard(el, m, highlight) {
+  el.innerHTML = '';
+  if (m === 'daily') { el.hidden = true; return; }
+  el.hidden = !data.scores[m].length;
+  data.scores[m].forEach((r, i) => {
+    const li = document.createElement('li');
+    li.textContent = `${i + 1}. ${r.score}${r.len ? ` · haba ${r.len}` : ''}`;
+    if (r.score === highlight && r.day === today()) li.className = 'me';
+    el.appendChild(li);
+  });
+}
+
+// Medals can unlock mid-game; each shows a toast once.
+function checkMedals(g) {
+  for (const id of earned(g)) {
+    if (data.medals.includes(id)) continue;
+    data.medals.push(id); newMedals.push(id);
+    const m = MEDALS.find((x) => x.id === id);
+    toast(`🏅 ${m.name}: ${m.desc}`);
+    A.medal();
+    persist();
+  }
+}
+let toastTimer = 0;
+function toast(text) {
+  const el = $('toast');
+  el.textContent = text; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+}
+
+function renderMedals() {
+  const box = $('medal-list');
+  box.innerHTML = '';
+  for (const m of MEDALS) {
+    const got = data.medals.includes(m.id);
+    const li = document.createElement('li');
+    li.className = got ? 'got' : '';
+    li.innerHTML = '<b></b><span></span>';
+    li.querySelector('b').textContent = `${got ? '🏅' : '🔒'} ${m.name}`;
+    li.querySelector('span').textContent = m.desc;
+    box.appendChild(li);
+  }
+  $('medal-count').textContent = `${data.medals.length} of ${MEDALS.length}`;
+}
+
+async function share() {
+  const g = game;
+  if (!g) return;
+  const day = new Date().toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  const text = `🐍 Ahas sa Fiesta · ${MODES[g.mode]}${g.mode === 'daily' ? ` ${day}` : ''}\nPuntos ${g.score} · Barangay ${g.level} · Haba ${g.snake.length}\n${location.origin}${location.pathname}`;
+  try {
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ text });
+    else { await navigator.clipboard.writeText(text); $('share').textContent = 'Nakopya! Copied'; }
+  } catch { $('share').textContent = 'Hindi ma-share'; }
 }
 
 function onEvent(e) {
   R.event(e, game);
   switch (e.type) {
-    case 'eat': A.eat(e.combo, !!FOODS[e.food].special); break;
+    case 'eat': A.eat(e.combo, !!FOODS[e.food].special); buzz(12); checkMedals(game); break;
     case 'spawn': A.spawn(!!e.special); break;
     case 'expire': A.expire(); break;
-    case 'clap': A.clap(); break;
-    case 'cut': A.cut(); break;
-    case 'die': A.die(); overAt = performance.now() + 1100; break;
+    case 'clap': A.clap(); buzz(30); checkMedals(game); break;
+    case 'cut': A.cut(); buzz(60); break;
+    case 'level': A.level(); buzz([20, 40, 20]); checkMedals(game); break;
+    case 'rooster': A.crow(); break;
+    case 'peck': A.peck(); break;
+    case 'shield': A.shield(); buzz(50); checkMedals(game); break;
+    case 'die': A.die(); buzz([80, 40, 140]); overAt = performance.now() + 1100; break;
     case 'move': think = true; break;
     default: break;
   }
@@ -86,6 +187,7 @@ function onEvent(e) {
 
 function pause() { if (mode === 'play') { mode = 'pause'; show('pause'); } }
 function resume() { if (mode === 'pause') { mode = 'play'; show(null); } }
+function toMenu() { mode = 'title'; game = null; show('title'); updateTitle(); }
 
 // ---------- input ----------
 function steer(d) {
@@ -95,9 +197,9 @@ function steer(d) {
 const KEYS = { ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down', ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right' };
 document.addEventListener('keydown', (e) => {
   const k = e.key;
-  if (KEYS[k]) { e.preventDefault(); steer(DIR[KEYS[k]]); return; }
+  if (KEYS[k] && mode === 'play') { e.preventDefault(); steer(DIR[KEYS[k]]); return; }
   if ((k === ' ' || k === 'Enter') && (mode === 'title' || mode === 'over') && document.activeElement?.tagName !== 'BUTTON') { e.preventDefault(); start(); return; }
-  if (k === 'p' || k === 'P' || k === 'Escape') { if (mode === 'play') pause(); else if (mode === 'pause') resume(); }
+  if (k === 'p' || k === 'P' || k === 'Escape') { if (mode === 'play') pause(); else if (mode === 'pause') resume(); else if (mode === 'medals') toMenu(); }
   if (k === 'm' || k === 'M') toggleSound();
 });
 // swipes anywhere on the stage
@@ -114,18 +216,30 @@ stage.addEventListener('pointermove', (e) => {
 for (const ev of ['pointerup', 'pointercancel']) stage.addEventListener(ev, () => { touch = null; });
 for (const b of document.querySelectorAll('[data-dir]')) b.addEventListener('pointerdown', (e) => { e.preventDefault(); steer(DIR[b.dataset.dir]); });
 
-function toggleSound() { A.start(); muted = !muted; A.setMuted(muted); persist(); soundLabel(); }
-const soundLabel = () => { for (const b of document.querySelectorAll('.sound')) b.textContent = muted ? 'Tunog: off' : 'Tunog: on'; };
+function toggleSound() { A.start(); data.muted = !data.muted; A.setMuted(data.muted); persist(); soundLabel(); }
+const soundLabel = () => { for (const b of document.querySelectorAll('.sound')) b.textContent = data.muted ? 'Tunog: off' : 'Tunog: on'; };
 soundLabel();
 for (const b of document.querySelectorAll('.sound')) b.onclick = toggleSound;
 for (const b of document.querySelectorAll('.play')) b.onclick = start;
+for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => { data.mode = b.dataset.mode; persist(); updateTitle(); };
 $('resume').onclick = resume;
 $('pause-btn').onclick = pause;
-$('menu').onclick = () => { mode = 'title'; game = null; show('title'); updateBest(); };
-$('quit').onclick = () => { mode = 'title'; game = null; show('title'); updateBest(); };
+$('menu').onclick = toMenu;
+$('quit').onclick = toMenu;
+$('share').onclick = share;
+$('open-medals').onclick = () => { renderMedals(); mode = 'medals'; show('medals'); };
+$('close-medals').onclick = toMenu;
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-const updateBest = () => { $('title-best').textContent = best ? `Best: ${best}` : ''; };
-updateBest();
+
+function updateTitle() {
+  for (const b of document.querySelectorAll('[data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === data.mode));
+  const d = new Date().toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  $('daily-label').textContent = `Araw-araw · ${d}`;
+  const b = bestFor(data.mode);
+  $('title-best').textContent = { klasiko: 'The frame is a wall.', walangpader: 'No walls: slip out one side, in the other.', daily: 'Everyone gets the same board today.' }[data.mode] + (b ? ` Best${data.mode === 'daily' ? ' today' : ''}: ${b}` : '');
+  $('open-medals').textContent = `Medalya ${data.medals.length}/${MEDALS.length}`;
+}
+updateTitle();
 
 // ---------- loop ----------
 let last = performance.now(), t = 0, demoWait = 0;
@@ -145,10 +259,10 @@ function frame(now) {
     if (demo.alive) {
       if (!demo.queue.length) { const d = bot(demo); if (d) turn(demo, d); }
       for (const e of step(demo, dt)) R.event(e, demo);
-    } else if ((demoWait += dt) > 1.5) { demoWait = 0; demo = createGame({ seed: seed() }); }
+    } else if ((demoWait += dt) > 1.5) { demoWait = 0; demo = createGame({ seed: randomSeed() }); }
   }
   const view = game || demo;
-  R.draw(view, t, { reduced: reduced(), best, hudOn: !!game });
+  R.draw(view, t, { reduced: reduced(), best: bestFor(view.mode), hudOn: !!game });
   const ready = !!game && mode === 'play' && readyT > 0;
   $('ready').hidden = !ready;
   if (ready) $('ready').textContent = readyT > 0.45 ? 'Handa…' : 'Laro na!';
@@ -161,6 +275,7 @@ show('title');
 requestAnimationFrame(frame);
 
 if (TEST) {
-  window.__ahas = { get game() { return game; }, get mode() { return mode; }, start };
+  window.__ahas = { get game() { return game; }, get mode() { return mode; }, start, setMode(m) { data.mode = m; updateTitle(); } };
+  if (Q.get('mode')) data.mode = Q.get('mode');
   if (Q.get('go') === '1') start();
 }

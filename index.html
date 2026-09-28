@@ -52,6 +52,21 @@ kbd { background: #3a1650; border: 1px solid #6a3a80; border-radius: 4px; paddin
 body.touch .pad { display: grid; }
 .pad button { padding: 0; font-size: 22px; border-radius: 14px; background: rgba(80, 30, 100, .7); }
 .pad [data-dir=up] { grid-column: 2; grid-row: 1; } .pad [data-dir=left] { grid-column: 1; grid-row: 2; } .pad [data-dir=down] { grid-column: 2; grid-row: 2; } .pad [data-dir=right] { grid-column: 3; grid-row: 2; }
+.modes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.modes button { min-height: 38px; padding: 4px 14px; font-size: 15px; background: rgba(60, 20, 80, .7); border-color: rgba(217, 191, 230, .35); }
+.modes button[aria-pressed=true] { background: var(--pink); color: #2a0f3a; border-color: var(--pink); }
+.top { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; font-size: 14px; color: var(--muted); }
+.top[hidden] { display: none; }
+.top .me { color: var(--yellow); font-weight: 800; }
+.medal-line { margin: 0; color: var(--yellow); font-weight: 700; font-size: 14px; }
+.medal-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: min(100%, 480px); text-align: left; }
+.medal-list li { background: rgba(60, 20, 80, .6); border-radius: 10px; padding: 6px 10px; opacity: .55; }
+.medal-list li.got { opacity: 1; border: 1.5px solid rgba(252, 209, 22, .6); }
+.medal-list b { display: block; font-size: 15px; }
+.medal-list span { font-size: 12px; color: var(--muted); }
+.toast { position: absolute; left: 50%; top: 17%; transform: translateX(-50%); background: rgba(29, 10, 43, .92); border: 2px solid var(--yellow); color: var(--ink); border-radius: 12px; padding: 6px 14px; font-weight: 700; font-size: 14px; pointer-events: none; white-space: nowrap; animation: drop .35s ease-out; }
+.toast[hidden] { display: none; }
+@keyframes drop { from { transform: translate(-50%, -12px); opacity: 0; } }
 .help { color: var(--muted); font-size: 13px; margin: 0; text-align: center; }
 .help a { color: var(--yellow); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
@@ -68,8 +83,15 @@ body.touch .pad { display: grid; }
       <h1 class="logo" aria-label="Ahas"><span>A</span><span>H</span><span>A</span><span>S</span></h1>
       <p class="sub">sa Fiesta</p>
       <p class="tag">Classic snake at a Pinoy fiesta. Eat street food on the banig, and keep your head out of the tinikling.</p>
+      <div class="modes" role="group" aria-label="Mode">
+        <button type="button" data-mode="klasiko">Klasiko</button>
+        <button type="button" data-mode="walangpader">Walang Pader</button>
+        <button type="button" data-mode="daily" id="daily-label">Araw-araw</button>
+      </div>
+      <p class="muted" id="title-best"></p>
       <div class="row">
         <button type="button" class="primary play">Laro na! · Play</button>
+        <button type="button" id="open-medals">Medalya</button>
         <button type="button" class="sound"></button>
       </div>
       <ul class="legend">
@@ -79,10 +101,11 @@ body.touch .pad { display: grid; }
         <li style="--c:#e0231d">Sili: faster, points ×2</li>
         <li style="--c:#7b3fa0">Halo-halo: slow motion</li>
         <li style="--c:#ff6fb5">Eat fast: sunod-sunod combo</li>
+        <li style="--c:#e0a526">Anting-anting: survive one crash</li>
+        <li style="--c:#8a4a22">Banga pots and the tandang: don't bump them</li>
         <li class="wide" style="--c:#ce1126">Red line? The tinikling poles are about to clap. Head caught: game over. Tail caught: snipped.</li>
       </ul>
       <p class="keys"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> or swipe · <kbd>P</kbd> pause · <kbd>M</kbd> sound</p>
-      <p class="muted" id="title-best"></p>
     </section>
 
     <section class="screen" id="pause" hidden>
@@ -101,12 +124,24 @@ body.touch .pad { display: grid; }
       <p id="over-best"></p>
       <p class="muted" id="over-stats"></p>
       <p class="muted" id="over-food"></p>
+      <p class="medal-line" id="over-medals"></p>
+      <ol class="top" id="over-top" aria-label="Top scores"></ol>
       <p class="tip" id="over-tip"></p>
       <div class="row">
         <button type="button" class="primary play">Ulit! · Play again</button>
+        <button type="button" id="share">I-share · Share</button>
         <button type="button" id="menu">Menu</button>
       </div>
     </section>
+
+    <section class="screen" id="medals" hidden>
+      <h2>Medalya</h2>
+      <p class="muted" id="medal-count"></p>
+      <ul class="medal-list" id="medal-list"></ul>
+      <div class="row"><button type="button" class="primary" id="close-medals">Balik · Back</button></div>
+    </section>
+
+    <div class="toast" id="toast" role="status" hidden></div>
   </div>
   <div class="pad" aria-label="Direction pad">
     <button type="button" data-dir="up" aria-label="Up">▲</button>
