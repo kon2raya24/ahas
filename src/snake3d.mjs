@@ -52,7 +52,8 @@ export function createSnake({ radial = 14, perCell = 8, Y0 = 0, cols = 20, rows 
 
   const H = snakeHead();
   group.add(H.group);
-  H.group.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  // only the big shapes throw shadows: skull, jaw and hat (eyes, tongue and trims would just cost draws)
+  H.group.traverse((o) => { if (o.isMesh) o.castShadow = o === H.skull || o.geometry.type === 'LatheGeometry' || o.parent === H.jaw && o.geometry.type === 'SphereGeometry'; });
 
   // ---------- state ----------
   const V = []; // the path's corners, unwrapped

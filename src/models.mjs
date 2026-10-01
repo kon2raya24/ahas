@@ -187,11 +187,10 @@ export function banga(rand = Math.random) {
   if (!POT) {
     const t = T.terracotta(4);
     const prof = [[0.001, 0], [0.2, 0], [0.26, 0.04], [0.38, 0.18], [0.42, 0.32], [0.39, 0.46], [0.3, 0.58], [0.2, 0.68], [0.18, 0.74], [0.24, 0.8], [0.25, 0.84], [0.215, 0.85], [0.17, 0.78], [0.16, 0.7]].map(([r, y]) => new THREE.Vector2(r, y));
-    POT = { geo: new THREE.LatheGeometry(prof, 36), mat: std('#ffffff', { map: t.map, normalMap: t.normalMap, roughness: 0.82 }), inside: std('#2a1208', { roughness: 1 }) };
+    POT = { geo: new THREE.LatheGeometry(prof, 36), mat: std('#ffffff', { map: t.map, normalMap: t.normalMap, roughness: 0.82, side: THREE.DoubleSide }) };
   }
   const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
   body.add(mesh(POT.geo, POT.mat, { s: [1.02, 1.05, 1.02] }));
-  body.add(mesh(new THREE.CircleGeometry(0.16, 20), POT.inside, { y: 0.74, rx: -Math.PI / 2, cast: false }));
   body.rotation.y = rand() * TAU;
   return g;
 }
@@ -235,6 +234,8 @@ export function rooster() {
     legs.push(leg);
   }
   body.scale.setScalar(0.92);
+  // fewer draws: each moving part becomes one mesh per material
+  mergeStatic(head); mergeStatic(neck, { shallow: true }); mergeStatic(tail); for (const l of legs) mergeStatic(l); mergeStatic(body, { shallow: true });
   return { group: g, body, neck, head, tail, legs };
 }
 
@@ -268,7 +269,6 @@ export function snakeHead() {
     const e = new THREE.Group(); e.position.set(0.17, 0.15, s * 0.21); e.scale.setScalar(1.25); g.add(e);
     e.add(mesh(sphere(0.1, 20, 14), mats().enamel));
     const pupil = mesh(sphere(0.062, 18, 12), mats().pupil, { x: 0.05, y: 0.02, z: s * 0.045 }); e.add(pupil);
-    e.add(mesh(sphere(0.018, 8, 6), phys('#ffffff', { emissive: '#ffffff', emissiveIntensity: 0.6 }), { x: 0.085, y: 0.06, z: s * 0.05, cast: false }));
     const lid = mesh(new THREE.SphereGeometry(0.108, 20, 10, 0, TAU, 0, Math.PI / 2), skinM, { cast: false }); lid.scale.y = 0.05; e.add(lid);
     eyes.push({ e, lid, pupil });
   }
@@ -278,6 +278,7 @@ export function snakeHead() {
   const tm = phys('#ff2d6a', { roughness: 0.3, clearcoat: 1 });
   tongue.add(mesh(new THREE.BoxGeometry(0.26, 0.018, 0.035), tm, { x: 0.13 }));
   for (const s of [-1, 1]) tongue.add(mesh(new THREE.BoxGeometry(0.1, 0.016, 0.022), tm, { x: 0.3, z: s * 0.025, ry: -s * 0.5 }));
+  mergeStatic(tongue);
   tongue.scale.set(0.001, 1, 1);
   // the salakot
   const hat = salakot(); hat.scale.setScalar(1.08); hat.position.set(-0.1, 0.21, 0); g.add(hat);
@@ -295,6 +296,7 @@ export function salakot() {
   cone.add(mesh(new THREE.TorusGeometry(0.2, 0.012, 6, 36), std('#ce1126', { roughness: 0.5 }), { y: 0.155, rx: Math.PI / 2 }));
   cone.add(mesh(sphere(0.035, 12, 8), mats().gold, { y: 0.27 }));
   cone.add(mesh(new THREE.ConeGeometry(0.016, 0.1, 8), mats().gold, { y: 0.33 }));
+  mergeStatic(cone);
   return g;
 }
 

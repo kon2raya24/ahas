@@ -6,6 +6,8 @@ const NOTE = (n) => 440 * 2 ** ((n - 69) / 12);
 const SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24]; // pentatonic, like a kulintang row
 const LOOP = [0, 4, 2, 4, 3, 4, 2, 1, 0, 4, 2, 4, 5, 4, 3, 2];
 const STEP = 60 / 112 / 2;
+const MUSIC = 0.3; // the loop sits under the effects
+const peakOf = (b) => { if (b.__peak) return b.__peak; let p = 0; for (let c = 0; c < b.numberOfChannels; c++) { const d = b.getChannelData(c); for (let i = 0; i < d.length; i += 4) p = Math.max(p, Math.abs(d[i])); } b.__peak = p || 1; return b.__peak; };
 
 export function createAudio({ base = 'assets/sfx/' } = {}) {
   const buf = {}, mix = { music: 1, sfx: 1 };
@@ -15,10 +17,14 @@ export function createAudio({ base = 'assets/sfx/' } = {}) {
   function start() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
     try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
-    master = ctx.createGain(); master.gain.value = muted ? 0 : 0.7; master.connect(ctx.destination);
-    music = ctx.createGain(); music.gain.value = 0.45 * mix.music; music.connect(master);
+    // everything goes through a limiter, so stacked sounds never clip
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -9; limiter.knee.value = 4; limiter.ratio.value = 14; limiter.attack.value = 0.003; limiter.release.value = 0.2;
+    limiter.connect(ctx.destination);
+    master = ctx.createGain(); master.gain.value = muted ? 0 : 0.8; master.connect(limiter);
+    music = ctx.createGain(); music.gain.value = MUSIC * mix.music; music.connect(master);
     sfx = ctx.createGain(); sfx.gain.value = mix.sfx; sfx.connect(master);
-    for (const [k, n] of Object.entries(SAMPLES)) for (let i = 0; i < n; i++) fetch(`${base}${k}00${i}.mp3`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject())).then((a) => ctx.decodeAudioData(a)).then((b) => { buf[k + i] = b; }).catch(() => { /* synth only */ });
+    for (const [k, n] of Object.entries(SAMPLES)) for (let i = 0; i < n; i++) fetch(`${base}${k}00${i}.mp3`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject())).then((a) => ctx.decodeAudioData(a)).then((b) => { buf[k + i] = b; peakOf(b); }).catch(() => { /* synth only */ });
     noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     nextAt = ctx.currentTime + 0.1;
@@ -52,7 +58,8 @@ export function createAudio({ base = 'assets/sfx/' } = {}) {
     if (!takes.length) return false;
     const s = ctx.createBufferSource(), g = ctx.createGain();
     s.buffer = takes[Math.floor(Math.random() * takes.length)]; s.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * vary);
-    g.gain.value = gain; s.connect(g).connect(sfx); s.start(ctx.currentTime + when);
+    const take = s.buffer, norm = 0.7 / Math.max(0.05, peakOf(take)); // every take normalised to the same peak
+    g.gain.value = gain * norm; s.connect(g).connect(sfx); s.start(ctx.currentTime + when);
     return true;
   }
   function schedule() {
@@ -70,10 +77,10 @@ export function createAudio({ base = 'assets/sfx/' } = {}) {
   return {
     start,
     get muted() { return muted; },
-    setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.7; },
+    setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.8; },
     set(isPlaying, tempo = 1) { playing = isPlaying; fast = tempo; },
     setMusic(on) { musicOn = on; },
-    setMix(m) { Object.assign(mix, m); if (music) music.gain.value = 0.45 * mix.music; if (sfx) sfx.gain.value = mix.sfx; },
+    setMix(m) { Object.assign(mix, m); if (music) music.gain.value = MUSIC * mix.music; if (sfx) sfx.gain.value = mix.sfx; },
     eat(combo, special) {
       play('impactSoft_medium_', 0.9, 1.5); play('impactGeneric_light_', 0.5, 1.7, 0.1);
       const n = SCALE[Math.min(SCALE.length - 1, combo)];

@@ -1,11 +1,11 @@
 // Offline play: the game's own files (three.js and the sounds included) are cached on install and
 // served cache-first; the plaza's scans (assets/env) and the webfont are cached the first time they load. Bump VERSION whenever a file changes so players get the update.
-const VERSION = 'ahas-v15';
+const VERSION = 'ahas-v16';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'src/main.mjs', 'src/game.mjs', 'src/render.mjs', 'src/audio.mjs', 'src/bot.mjs', 'src/rng.mjs', 'src/medals.mjs', 'src/festivals.mjs',
-  'src/view3d.mjs', 'src/plaza.mjs', 'src/snake3d.mjs', 'src/models.mjs', 'src/fx3d.mjs', 'src/tex.mjs', 'src/post.mjs', 'src/envpack.mjs', 'src/look.mjs',
+  'src/view3d.mjs', 'src/plaza.mjs', 'src/crowd3d.mjs', 'src/snake3d.mjs', 'src/models.mjs', 'src/fx3d.mjs', 'src/tex.mjs', 'src/post.mjs', 'src/envpack.mjs', 'src/look.mjs',
   'src/vendor/three.module.min.js', 'src/vendor/three-fx.min.js', 'src/vendor/three-mocap.min.js',
   'assets/sfx/impactWood_light_000.mp3', 'assets/sfx/impactWood_light_001.mp3', 'assets/sfx/impactWood_heavy_000.mp3', 'assets/sfx/impactWood_heavy_001.mp3',
   'assets/sfx/impactPlate_light_000.mp3', 'assets/sfx/impactPlate_light_001.mp3', 'assets/sfx/impactSoft_medium_000.mp3', 'assets/sfx/impactSoft_medium_001.mp3',

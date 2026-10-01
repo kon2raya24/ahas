@@ -228,6 +228,22 @@ export function sawali(seed = 12, { color = '#caa56a', n = 12, repeat = null } =
   }, { repeat, strength: 4 });
 }
 
+// Foliage: overlapping leaves in a few greens, with their own relief.
+export function foliage(seed = 31) {
+  const S = 256, r = rng(seed), cv = canvas(S, S), x = cv.getContext('2d'), hgt = new Float32Array(S * S);
+  x.fillStyle = '#3a5a26'; x.fillRect(0, 0, S, S);
+  for (let k = 0; k < 900; k++) {
+    const cx = r() * S, cy = r() * S, a = r() * Math.PI * 2, L = 9 + r() * 9, W = L * 0.42, v = 0.7 + r() * 0.6;
+    x.save(); x.translate(cx, cy); x.rotate(a);
+    x.fillStyle = shade('#6a9a3e', v); x.beginPath(); x.ellipse(0, 0, L, W, 0, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = 'rgba(30,50,15,0.5)'; x.lineWidth = 1; x.beginPath(); x.moveTo(-L, 0); x.lineTo(L, 0); x.stroke();
+    x.restore();
+    for (let j = -L; j <= L; j += 2) { const px = Math.round(cx + Math.cos(a) * j), py = Math.round(cy + Math.sin(a) * j); for (let w = -W * 0.7; w <= W * 0.7; w += 2) { const qx = ((px - Math.round(Math.sin(a) * w)) % S + S) % S, qy = ((py + Math.round(Math.cos(a) * w)) % S + S) % S; hgt[qy * S + qx] = Math.max(hgt[qy * S + qx], (k / 900) * 0.6 + 0.4 * (1 - Math.abs(j) / L)); } }
+  }
+  const map = toTex(cv, { repeat: [2, 2] }); const nm = normalMap(hgt, S, S, 3, { repeat: [2, 2] });
+  return { map, normalMap: nm };
+}
+
 // ---------- festival pieces ----------
 // Kiping: a leaf-shaped rice wafer, translucent colour with veins. The alpha is the leaf's outline.
 export function kiping(color = '#e53935') {

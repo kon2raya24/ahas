@@ -65,6 +65,10 @@ The camera is a tilted three-quarter view that always fits the whole board above
 
 **Settings (Ayos):** graphics auto/high/medium/low (auto steps down on slow devices; `?gfx=0|1|2` pins it), music and effects volume, camera shake (Kalmado turns off shake, flashes and the camera swings; `prefers-reduced-motion` does too), the camera angle and stronger grid lines. Keyboard, swipes, the d-pad and gamepads all steer.
 
+Townsfolk stand round the stage and jump with their arms up when you chain a combo, survive on an anting-anting or reach a new festival, which also opens with fireworks. On the Vercel deploy they're the baked Mixamo crowd from Tumbang Preso (`assets/people/`, git-ignored; `?people=0` skips it); everywhere else they're instanced townsfolk built in code. Food bobs and glints, the tinikling's clack sends a shockwave across its line, and a crash punches in on the head as the body pops into confetti and the salakot tumbles to the mat.
+
+A busy frame is under 200 draws at medium graphics: static decor is merged per material (per festival too), the bunting, flowers, crowd and props are instanced, and only things near the stage throw shadows. Sound goes through a limiter, with the music under the effects and every recording normalised.
+
 If WebGL won't start, the game falls back to the original 2D board (`?flat=1` forces it).
 
 ## How it's built
@@ -72,7 +76,7 @@ If WebGL won't start, the game falls back to the original 2D board (`?flat=1` fo
 - `src/game.mjs` holds the rules as a pure `step(game, dt)` that returns events. It's seeded, so tests are deterministic.
 - `src/view3d.mjs` is the three.js view: lights, the per-festival time of day, the food, banga, tandang and tinikling, the camera and its shots. It only reads the game.
 - `src/plaza.mjs` builds the plaza and each festival's dressing; `src/snake3d.mjs` is the serpent (one tube rebuilt each frame along the path, rounded corners, a slither fixed in the world, bulges after meals); `src/models.mjs` the crafted pieces; `src/fx3d.mjs` particles, rings, light flashes and floating lettering; `src/tex.mjs` procedural canvas textures; `src/look.mjs` each festival's sky, sun and grade; `src/post.mjs` the film look (ambient occlusion, bloom, grade, vignette, grain, SMAA), adapted from Tumbang Preso.
-- `src/envpack.mjs` swaps in CC0 [Poly Haven](https://polyhaven.com) scans from `assets/env/`: seven skies (light and backdrop), herringbone brick, coral stone, clay tiles, plaster and boards, and real props (tables, chairs, baskets, fruit, trees, a cart, candle holders, flowers, a fire pit). They were converted with the Bakbakan tools (`tools/env-run.mjs`). Without them the painted plaza stays.
+- `src/envpack.mjs` swaps in CC0 [Poly Haven](https://polyhaven.com) scans from `assets/env/`: seven skies (light and backdrop), herringbone brick, coral stone, clay tiles, plaster and boards, and real props (tables, chairs, baskets, fruit, a cart, candle holders, flowers, a fire pit); the mango and acacia trees are built in code. They were converted with the Bakbakan tools (`tools/env-run.mjs`). Without them the painted plaza stays.
 - `assets/sfx/` holds CC0 [Kenney](https://kenney.nl) impact sounds (the bite, bamboo on wood, clay, a bell); `src/audio.mjs` mixes them with the synthesized gongs and fiesta loop.
 - `src/render.mjs` is the original 2D canvas renderer, kept as the fallback.
 - `src/audio.mjs` makes kulintang-style gongs, bamboo clicks and a fiesta loop with Web Audio.

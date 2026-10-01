@@ -15,7 +15,14 @@ const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 let rs = 20260928;
 const rnd = () => { rs = (rs * 16807) % 2147483647; return rs / 2147483647; };
 const pick = (a) => a[Math.floor(rnd() * a.length)];
-const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, ...o });
+// plain materials are shared by colour, so the merge can fold every copy into one draw
+const STD = new Map();
+const std = (color, o = {}) => {
+  if (Object.values(o).some((v) => v && typeof v === 'object')) return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, ...o });
+  const k = color + JSON.stringify(o);
+  if (!STD.has(k)) STD.set(k, new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, ...o }));
+  return STD.get(k);
+};
 const tag = (m, kind, w, h, extra = {}) => { m.userData.surface = { kind, w, h, ...extra }; return m; };
 function mesh(geo, mat, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, s = null, cast = true, receive = true } = {}) {
   const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz);
@@ -25,12 +32,12 @@ function mesh(geo, mat, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, s = null,
 const box = (w, h, d, m, o) => mesh(new THREE.BoxGeometry(w, h, d), m, o);
 
 // Merge every static mesh that shares a material into one, so the plaza costs a few dozen draws.
-export function mergeStatic(root) {
+export function mergeStatic(root, { shallow = false } = {}) {
   root.updateMatrixWorld(true);
   const inv = root.matrixWorld.clone().invert(), rel = new THREE.Matrix4();
   const buckets = new Map();
   root.traverse((o) => {
-    if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.userData.keep) return;
+    if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.userData.keep || (shallow && o.parent !== root)) return;
     for (let p = o.parent; p && p !== root; p = p.parent) if (p.userData.standIn) return; // stand-ins hide as a whole: merged on their own
     const key = `${o.material.uuid}:${o.castShadow}:${o.receiveShadow}`;
     if (!buckets.has(key)) buckets.set(key, []);
@@ -57,6 +64,12 @@ export function mergeStatic(root) {
   }
 }
 
+// Only things near the stage throw shadows (the sun's shadow covers the stage); far away it costs draws for nothing.
+function nearShadows(root, R = 17) {
+  root.updateMatrixWorld(true);
+  const v = new THREE.Vector3();
+  root.traverse((o) => { if (o.isMesh && o.castShadow) { o.getWorldPosition(v); if (Math.abs(v.x) > R || Math.abs(v.z) > R) o.castShadow = false; } });
+}
 // A string hanging between two points.
 function catenary(a, b, sag, n = 24) {
   const pts = [];
@@ -200,6 +213,8 @@ export function buildPlaza({ low = false } = {}) {
 
   // ---------- the church ----------
   const church = new THREE.Group(); church.position.set(0, 0, -64); statics.add(church);
+  let stained = null;
+  const archGeo = (() => { const s = new THREE.Shape(); s.moveTo(-1.4, 0); s.lineTo(1.4, 0); s.lineTo(1.4, 3.7); s.absarc(0, 3.7, 1.4, 0, Math.PI, false); s.lineTo(-1.4, 0); return new THREE.ShapeGeometry(s, 12); })();
   const coral = tag(std('#cdb896', { roughness: 0.95 }), 'stone', 30, 30, { tint: '#f0e2c8' });
   const coralDark = std('#1a120e', { roughness: 1 });
   const roofM = tag(std('#9a4a2a', { roughness: 0.8 }), 'roof', 30, 20);
@@ -216,24 +231,49 @@ export function buildPlaza({ low = false } = {}) {
     for (const x of [-15.2, -5, 5, 15.2]) church.add(box(1.6, 25, 3.4, coral, { x, y: 12.5, z: 1.2 }));
     // the nave behind, with a tiled roof
     church.add(box(28, 20, 34, coral, { y: 10, z: -17 }));
-    const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 20.5, 8, 4, 1, false, Math.PI / 4), roofM); roof.scale.set(1, 1, 1.75); roof.position.set(0, 24, -17); roof.castShadow = true; church.add(roof);
+    const gable = new THREE.Shape(); gable.moveTo(-15.5, 0); gable.lineTo(15.5, 0); gable.lineTo(0, 9); gable.closePath();
+    church.add(mesh(new THREE.ExtrudeGeometry(gable, { depth: 35, bevelEnabled: false }), roofM, { y: 19.8, z: -34.5 }));
     // twin bell towers
     for (const s of [-1, 1]) {
       const t = new THREE.Group(); t.position.set(s * 21, 0, -1); church.add(t);
       t.add(box(9, 22, 9, coral, { y: 11 })); t.add(box(10, 0.8, 10, coral, { y: 22.4 }));
       t.add(box(7.4, 9, 7.4, coral, { y: 27.2 })); t.add(box(8.2, 0.7, 8.2, coral, { y: 32 }));
-      for (let k = 0; k < 4; k++) { const a = (k * Math.PI) / 2; t.add(box(3, 5.2, 0.4, coralDark, { x: Math.sin(a) * 3.55, y: 27, z: Math.cos(a) * 3.55, ry: a, cast: false })); }
+      // arched bell openings on every face
+      for (let k = 0; k < 4; k++) { const a = (k * Math.PI) / 2; t.add(mesh(archGeo, coralDark, { x: Math.sin(a) * 3.72, y: 24.6, z: Math.cos(a) * 3.72, ry: a, cast: false })); t.add(mesh(new THREE.TorusGeometry(1.55, 0.25, 6, 16, Math.PI), coral, { x: Math.sin(a) * 3.75, y: 28.3, z: Math.cos(a) * 3.75, ry: a })); }
+      for (const [x, z] of [[-3.7, -3.7], [3.7, -3.7], [-3.7, 3.7], [3.7, 3.7]]) t.add(box(0.9, 9, 0.9, coral, { x, y: 27.2, z }));
       t.add(mesh(new THREE.CylinderGeometry(1.2, 1.4, 1.6, 16), std('#b8862a', { roughness: 0.35, metalness: 0.9 }), { y: 26.8 })); // the bell
       t.add(mesh(new THREE.SphereGeometry(3.6, 20, 12, 0, TAU, 0, Math.PI / 2), roofM, { y: 32.3 }));
       t.add(box(0.3, 2.8, 0.3, std('#e8e0d0'), { y: 37 })); t.add(box(1.4, 0.3, 0.3, std('#e8e0d0'), { y: 37.6 }));
     }
+    // the door: carved double leaves under the arch
+    const doorM = std('#4a2a16', { roughness: 0.7 }), stud = std('#c8a050', { roughness: 0.35, metalness: 0.9 });
+    church.add(box(6.2, 8.4, 0.4, doorM, { y: 4.2, z: 0.9 }));
+    church.add(mesh(new THREE.CylinderGeometry(3.1, 3.1, 0.4, 24, 1, false, 0, Math.PI), doorM, { y: 8.4, z: 0.9, rx: Math.PI / 2, rz: Math.PI / 2 }));
+    for (const x of [-1.5, 1.5]) for (const y of [2, 4.5, 7]) church.add(box(2.2, 1.8, 0.2, std('#3a1e0e', { roughness: 0.75 }), { x, y, z: 1.15 }));
+    church.add(box(0.12, 8.4, 0.5, std('#1a0e06'), { y: 4.2, z: 1.0 }));
+    for (const x of [-0.5, 0.5]) church.add(mesh(new THREE.TorusGeometry(0.35, 0.06, 6, 14), stud, { x, y: 4.4, z: 1.2 }));
+    // stained glass: the rose window and the arched windows glow at night
+    const roseC = T.canvas(256, 256), rx2 = roseC.getContext('2d');
+    for (let k = 0; k < 16; k++) { rx2.fillStyle = ['#c0392b', '#2a5ab8', '#f2c230', '#2e8b57'][k % 4]; rx2.beginPath(); rx2.moveTo(128, 128); rx2.arc(128, 128, 128, (k / 16) * TAU, ((k + 1) / 16) * TAU); rx2.fill(); }
+    rx2.fillStyle = '#f2c230'; rx2.beginPath(); rx2.arc(128, 128, 34, 0, TAU); rx2.fill();
+    rx2.strokeStyle = '#1a120e'; rx2.lineWidth = 6; for (let k = 0; k < 16; k++) { rx2.beginPath(); rx2.moveTo(128, 128); rx2.lineTo(128 + Math.cos((k / 16) * TAU) * 128, 128 + Math.sin((k / 16) * TAU) * 128); rx2.stroke(); } for (const r of [34, 80]) { rx2.beginPath(); rx2.arc(128, 128, r, 0, TAU); rx2.stroke(); }
+    const roseT = T.toTex(roseC);
+    stained = std('#ffffff', { map: roseT, emissive: '#ffffff', emissiveMap: roseT, emissiveIntensity: 0.15, roughness: 0.2 });
+    church.add(mesh(new THREE.CircleGeometry(2.4, 32), stained, { y: 17.5, z: 0.6, cast: false }));
+    church.add(mesh(new THREE.TorusGeometry(2.45, 0.22, 8, 36), coral, { y: 17.5, z: 2.3 }));
+    for (const [x, y, w, h] of [[-9.5, 8, 2.6, 5.5], [9.5, 8, 2.6, 5.5], [-9.5, 17, 2.2, 4.2], [9.5, 17, 2.2, 4.2]]) church.add(mesh(new THREE.PlaneGeometry(w, h), stained, { x, y: y + h / 2, z: 0.6, cast: false }));
+    // a niche with a saint over the door, and finials on the gable
+    church.add(box(2.4, 3.8, 0.6, coralDark, { y: 29.5, z: 1.9 }));
+    church.add(mesh(new THREE.CapsuleGeometry(0.55, 1.6, 4, 10), std('#f0ece4', { roughness: 0.6 }), { y: 29.4, z: 2.1 }));
+    for (const x of [-15.2, -7, 7, 15.2]) church.add(mesh(new THREE.ConeGeometry(0.6, 2.2, 8), coral, { x, y: 27.1, z: 1.2 }));
+    church.add(box(0.35, 3, 0.35, std('#e8e0d0'), { y: 37.4, z: 0.6 })); church.add(box(1.6, 0.35, 0.35, std('#e8e0d0'), { y: 38.2, z: 0.6 }));
     // steps up to the door
     for (let k = 0; k < 4; k++) church.add(box(18 - k * 1.5, 0.35, 2, coral, { y: 0.17 + k * 0.35, z: 5.5 - k * 1.1 }));
   }
 
   // ---------- bahay na bato round the plaza ----------
-  const plaster = ['#f0e4cc', '#e8d2b0', '#f4ead8', '#dccbb0', '#efdcc8'].map((c) => tag(std(c, { roughness: 0.92 }), 'plaster', 10, 6, { detail: true }));
-  const woodUp = ['#7a4a26', '#6a3e20', '#8a5a30'].map((c) => tag(std(c, { roughness: 0.8 }), 'wood', 10, 4));
+  const plaster = ['#f0e4cc', '#e2ccaa'].map((c) => tag(std(c, { roughness: 0.92 }), 'plaster', 10, 6, { detail: true }));
+  const woodUp = ['#7a4a26', '#5e3a1e'].map((c) => tag(std(c, { roughness: 0.8 }), 'wood', 10, 4));
   const capizCanvas = T.canvas(512, 128), cx2 = capizCanvas.getContext('2d');
   cx2.fillStyle = '#4a2c16'; cx2.fillRect(0, 0, 512, 128);
   for (let w = 0; w < 4; w++) for (let j = 0; j < 5; j++) for (let i = 0; i < 6; i++) { cx2.fillStyle = T.shade('#f4ecd8', 0.9 + ((i + j) % 2) * 0.08); cx2.fillRect(w * 128 + 10 + i * 18, 14 + j * 20, 15, 17); }
@@ -255,12 +295,21 @@ export function buildPlaza({ low = false } = {}) {
   for (const x of [-38, 38]) house(x, -52, 0, 16, 12);
 
   // ---------- trees and lamps (painted stand-ins; real ones from the scans) ----------
-  const bark = std('#5a4030', { roughness: 0.95 }), leaf = std('#3f6a2a', { roughness: 0.9 }), leaf2 = std('#4f7a30', { roughness: 0.9 });
-  const trees = [[-33, -30], [33, -30], [-35, 22], [35, 22], [-28, 40], [28, 40], [-14, -36], [14, -36]];
-  for (const [x, z] of trees) {
-    const t = standIn(new THREE.Group()); t.position.set(x, 0, z); statics.add(t);
-    t.add(mesh(new THREE.CylinderGeometry(0.6, 1, 9, 8), bark, { y: 4.5 }));
-    for (let k = 0; k < 6; k++) t.add(mesh(new THREE.IcosahedronGeometry(3.4 + rnd() * 1.4, 1), k % 2 ? leaf : leaf2, { x: (rnd() - 0.5) * 6, y: 10 + rnd() * 3, z: (rnd() - 0.5) * 6 }));
+  // dense mango and acacia trees: a forked trunk under a crown of lumpy leaf clusters
+  const foliageTex = T.foliage(31);
+  const bark = std('#5a4030', { roughness: 0.95 }), leaf = std('#ffffff', { map: foliageTex.map, normalMap: foliageTex.normalMap, color: '#5f8a3a', roughness: 0.85 }), leaf2 = std('#ffffff', { map: foliageTex.map, normalMap: foliageTex.normalMap, color: '#48742c', roughness: 0.85 });
+  const blob = (r) => { const g = new THREE.IcosahedronGeometry(r, 2), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const k = 1 + (Math.sin(p.getX(i) * 2.1 + p.getZ(i) * 1.7) * Math.cos(p.getY(i) * 2.3)) * 0.12 + (rnd() - 0.5) * 0.08; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.78, p.getZ(i) * k); } g.computeVertexNormals(); return g; };
+  const trees = [[-33, -30, 1], [33, -30, 0], [-35, 22, 0], [35, 22, 1], [-28, 40, 1], [28, 40, 0], [-14, -36, 0], [14, -36, 1], [-44, -48, 1], [44, -46, 0]];
+  for (const [x, z, acacia] of trees) {
+    const t = new THREE.Group(); t.position.set(x, 0, z); t.rotation.y = rnd() * TAU; statics.add(t);
+    const h = acacia ? 8 : 6.5;
+    t.add(mesh(new THREE.CylinderGeometry(0.55, 1.0, h, 9), bark, { y: h / 2 }));
+    for (let k = 0; k < 3; k++) { const a = (k / 3) * TAU; t.add(mesh(new THREE.CylinderGeometry(0.25, 0.45, 5, 7), bark, { x: Math.cos(a) * 1.4, y: h + 1.4, z: Math.sin(a) * 1.4, rz: Math.cos(a) * 0.6, rx: -Math.sin(a) * 0.6 })); }
+    const n = acacia ? 14 : 12, R = acacia ? 7 : 5;
+    for (let k = 0; k < n; k++) {
+      const a = rnd() * TAU, d = Math.sqrt(rnd()) * R;
+      t.add(mesh(blob(acacia ? 2.6 + rnd() * 1.2 : 2.8 + rnd() * 1.4), k % 2 ? leaf : leaf2, { x: Math.cos(a) * d, y: h + (acacia ? 3 + rnd() * 1.4 : 3.4 + rnd() * 3.2) - d * 0.2, z: Math.sin(a) * d }));
+    }
   }
   const lampM = std('#1c1c20', { roughness: 0.5, metalness: 0.7 });
   const lampGlass = std('#fff2c8', { emissive: '#ffd08a', emissiveIntensity: 0, roughness: 0.2 });
@@ -269,7 +318,7 @@ export function buildPlaza({ low = false } = {}) {
     const l = new THREE.Group(); l.position.set(x, 0, z); statics.add(l);
     l.add(mesh(new THREE.CylinderGeometry(0.16, 0.26, 11, 10), lampM, { y: 5.5 }));
     l.add(mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.3, 10), lampM, { y: 11 }));
-    const glassMesh = mesh(new THREE.CylinderGeometry(0.42, 0.3, 1.1, 10), lampGlass, { y: 11.7, cast: false }); glassMesh.userData.keep = true; l.add(glassMesh);
+    l.add(mesh(new THREE.CylinderGeometry(0.42, 0.3, 1.1, 10), lampGlass, { y: 11.7, cast: false }));
     l.add(mesh(new THREE.ConeGeometry(0.6, 0.6, 10), lampM, { y: 12.5 }));
     lamps.push(V3(x, 11.7, z));
   }
@@ -319,6 +368,8 @@ export function buildPlaza({ low = false } = {}) {
   const flames = []; // torch and candle flames for the view's particles
   const glows = []; // point-light spots for night festivals
   const spin = []; // things that turn or sway
+  const parolMats = new Map();
+  const parolMat = (c) => { if (!parolMats.has(c)) parolMats.set(c, new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.6, roughness: 0.4, side: THREE.DoubleSide })); return parolMats.get(c); };
   function buildSet(name, fest) {
     const g = new THREE.Group(); g.name = 'set ' + name;
     const F = fest.flags;
@@ -327,11 +378,10 @@ export function buildPlaza({ low = false } = {}) {
     const starShape = new THREE.Shape(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 0.45 : 1.1, a = -Math.PI / 2 + (k * Math.PI) / 5; (k ? starShape.lineTo : starShape.moveTo).call(starShape, Math.cos(a) * r, Math.sin(a) * r); } starShape.closePath();
     const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 0.3, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 1 }).translate(0, 0, -0.15);
     const parol = (p, color, s = 1) => {
-      const m = parolM.clone(); m.color.set(color); m.emissive.set(color);
+      const m = parolMat(color);
       const o = new THREE.Group(); o.position.copy(p); g.add(o);
       o.add(mesh(starGeo, m, { s, cast: false }));
       for (const sx of [-0.3, 0.3]) o.add(mesh(new THREE.BoxGeometry(0.06, 1.6 * s, 0.02), m, { x: sx * s, y: -1.6 * s, cast: false })); // tails
-      spin.push({ o, kind: 'sway', p: rnd() * 6 });
       glows.push({ p: p.clone(), color, power: 0.6 });
       return o;
     };
@@ -462,12 +512,14 @@ export function buildPlaza({ low = false } = {}) {
           const h = 5 + rnd() * 2;
           b.add(mesh(new THREE.SphereGeometry(0.7, 16, 12), bal[k % bal.length], { y: h, s: [1, 1.2, 1] }));
           b.add(mesh(new THREE.CylinderGeometry(0.01, 0.01, h, 4), std('#eeeeee'), { y: h / 2, cast: false }));
-          spin.push({ o: b, kind: 'balloon', p: rnd() * 6 });
         }
       }
     }
     // everyone gets parols on the tall posts (bigger at MassKara)
-    for (const p of posts) parol(p.clone().add(V3(0, -1.6, 0)), F[Math.floor(rnd() * F.length)], name === 'MassKara' ? 1.2 : 0.8);
+    posts.forEach((p, i) => parol(p.clone().add(V3(0, -1.6, 0)), F[i % 2], name === 'MassKara' ? 1.2 : 0.8)); // two colours, alternating
+    // everything that doesn't move becomes a few merged meshes: one per material
+    for (const s of spin) s.o.traverse((m) => { m.userData.keep = true; });
+    nearShadows(g); mergeStatic(g);
     return g;
   }
 
@@ -504,7 +556,7 @@ export function buildPlaza({ low = false } = {}) {
     grow = instant ? 1 : 0;
     if (instant && leaving) { leaving.visible = false; leaving = null; }
     applyGrow();
-    capizM.emissiveIntensity = look.night * 1.4; lampGlass.emissiveIntensity = look.night * 3 + 0.2;
+    capizM.emissiveIntensity = look.night * 1.4; if (stained) stained.emissiveIntensity = 0.15 + look.night * 1.6; lampGlass.emissiveIntensity = look.night * 3 + 0.2;
     hang.bulb.material.emissiveIntensity = 2.5;
   }
   function applyGrow() {
@@ -537,11 +589,11 @@ export function buildPlaza({ low = false } = {}) {
     if (wrap) glowTex.offset.x = reduced ? 0 : (t * 0.35) % 1;
   }
   const active = () => (current ? sets.get(current.name) : null);
-  mergeStatic(statics);
+  nearShadows(statics); mergeStatic(statics);
   for (const o of standIns) mergeStatic(o);
   mergeStatic(frame);
   return {
-    root, mat, matM, frame, setFestival, update, stalls, lamps, standIns, anchors, postTops, trees, setOf: (n) => sets.get(n),
+    root, mat, matM, frame, setFestival, update, stalls, lamps, standIns, anchors, postTops, setOf: (n) => sets.get(n),
     get flames() { const g = active(); return g ? g.userData.flames : []; },
     get glows() { const g = active(); return g ? g.userData.glows : []; },
     capizM, lampGlass,

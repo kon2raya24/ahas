@@ -16,9 +16,9 @@ export const LOOK = {
     skyCol: ['#5a8ad0', '#f2e2c8'],
   },
   Sinulog: {
-    time: 'Tanghali · high noon', sky: 'qwantani_noon_puresky', env: 0.4, backdrop: 'qwantani_noon_puresky', turn: 2.0, tint: '#ffffff',
-    sun: { az: -1.0, el: 1.12, color: '#fff6e6', i: 2.1 }, hemi: ['#d8ecff', '#c49a62', 0.55], fog: ['#dce8f2', 60, 200], exposure: 0.98,
-    grade: [1.12, 1.18, [1.06, 1.0, 0.9], 0.36, 0.2, 1.3], paint: ['#d32f2f', '#fbc02d', '#d32f2f', '#fff8e1'], night: 0,
+    time: 'Tanghali · high noon', sky: 'qwantani_noon_puresky', env: 0.32, backdrop: 'qwantani_noon_puresky', turn: 2.0, tint: '#f4f8ff',
+    sun: { az: -1.0, el: 1.05, color: '#fff2dc', i: 2.0 }, hemi: ['#cfe4ff', '#b08a58', 0.45], fog: ['#c8daea', 80, 230], exposure: 0.88,
+    grade: [1.16, 1.18, [1.05, 1.0, 0.92], 0.38, 0.12, 1.8], paint: ['#d32f2f', '#fbc02d', '#d32f2f', '#fff8e1'], night: 0,
     skyCol: ['#3a78c8', '#d6e8f6'],
   },
   Panagbenga: {

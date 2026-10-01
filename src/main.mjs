@@ -235,7 +235,7 @@ function onEvent(e) {
     case 'rooster': A.crow(); hint('rooster', 'The tandang steals your food. Beat him to it, and never bump him.'); break;
     case 'peck': A.peck(); break;
     case 'shield': A.shield(); buzz(50); checkMedals(game); break;
-    case 'die': A.die(); buzz([80, 40, 140]); overAt = performance.now() + 1500; break;
+    case 'die': A.die(); buzz([80, 40, 140]); overAt = 1.7; break; // seconds of the crash shot, in frame time
     case 'move': think = true; break;
     default: break;
   }
@@ -434,7 +434,7 @@ function frame(now) {
     }
     if (holdT <= 0 && readyT > 0 && game.alive && bannerT <= 0.2) { if (!$('banner').dataset.ready) { $('banner').dataset.ready = '1'; banner(`<b class="gold">${readyT > 0.5 ? 'Handa…' : 'Laro na!'}</b>`, readyT + 0.35); } }
     if (readyT <= 0) delete $('banner').dataset.ready;
-    if (!game.alive && now > overAt && overAt) { overAt = 0; gameOver(); }
+    if (!game.alive && overAt > 0) { overAt -= dt; if (overAt <= 0) { overAt = 0; gameOver(); } }
     hud();
   } else if (!game) {
     if (demo.alive) {
@@ -464,6 +464,8 @@ async function boot() {
       V.setEnv(env, (f) => { pct.textContent = `${Math.round(f * 100)}%`; bar.style.setProperty('--p', `${Math.round(f * 100)}%`); });
       let k = 10; const tick = setInterval(() => { k = Math.min(100, k + 15); pct.textContent = `${k}%`; bar.style.setProperty('--p', `${k}%`); if (k >= 100) { clearInterval(tick); bar.classList.add('done'); setTimeout(() => { bar.hidden = true; }, 700); } }, 250);
     }).catch(() => { bar.hidden = true; });
+    // the real crowd (Mixamo, Vercel-only): the townsfolk stay if it isn't there
+    if (Q.get('people') !== '0') V.crowd.loadReal(Q.get('people') || 'assets/people/').catch(() => { /* the townsfolk stay */ });
   }
   show('title');
   requestAnimationFrame((n) => { last = n; requestAnimationFrame(frame); });

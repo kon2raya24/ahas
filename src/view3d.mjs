@@ -15,6 +15,7 @@ import { food as foodModel, SPECIAL_GLOW, banga, rooster as roosterModel, tinikl
 import { createFx } from './fx3d.mjs';
 import { lookOf } from './look.mjs';
 import { loadSky, dressPlaza, dressFestival } from './envpack.mjs';
+import { createCrowd } from './crowd3d.mjs';
 import * as T from './tex.mjs';
 
 const TAU = Math.PI * 2;
@@ -80,6 +81,14 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
   // the floating lettering is drawn after the film look, so occlusion and grain never dim it
   const overlay = new THREE.Scene();
   const fx = createFx(scene, { max: low ? 900 : 1500, overlay });
+  const crowd = createCrowd(); scene.add(crowd.group);
+  let cheer = 0;
+  // the tinikling's clack: a flat shockwave that runs out from the line
+  const clackTex = (() => { const c = T.canvas(8, 64), x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.45, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 8, 64); return T.toTex(c, { color: false }); })();
+  const clack = new THREE.Mesh(new THREE.PlaneGeometry(22, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color('#fff2c0').multiplyScalar(2.2), alphaMap: clackTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  clack.rotation.x = -Math.PI / 2; clack.visible = false; clack.renderOrder = 4; scene.add(clack);
+  let clackT = -1;
+  const rockets = [];
   // the strong-grid option: fine lines between the cells
   const gridCanvas = T.canvas(640, 640), gc = gridCanvas.getContext('2d');
   gc.strokeStyle = 'rgba(40,20,8,1)'; gc.lineWidth = 2; for (let k = 0; k <= 20; k++) { gc.beginPath(); gc.moveTo(k * 32, 0); gc.lineTo(k * 32, 640); gc.moveTo(0, k * 32); gc.lineTo(640, k * 32); gc.stroke(); }
@@ -110,7 +119,7 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
     // a soft contact shadow and a warm glow, so food pops off the mat
     const sh = new THREE.Mesh(blobGeo, blobM); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.012; sh.renderOrder = 1; g.add(sh);
     const gl = new THREE.Mesh(blobGeo, glowM(FOODS[f.type].special ? SPECIAL_GLOW[f.type] : '#ffd27a')); gl.rotation.x = -Math.PI / 2; gl.position.y = 0.016; gl.scale.setScalar(1.25); gl.renderOrder = 2; g.add(gl);
-    model.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
+    model.traverse((o) => { if (o.isMesh) o.castShadow = false; }); // the soft blob under it is its shadow
     const e = { f, g, model, type: f.type, x: f.x, y: f.y, t: 0, special: !!FOODS[f.type].special, eaten: null, leaving: -1, spin: Math.random() * TAU };
     if (e.special) {
       e.ring = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), ringMat(SPECIAL_GLOW[f.type])); e.ring.rotation.x = -Math.PI / 2; e.ring.position.y = 0.02; e.ring.renderOrder = 3; g.add(e.ring);
@@ -212,7 +221,7 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
   function playPose(o, out) {
     const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1, aspect = w / h;
     const top = o.camStyle === 'top';
-    const pitch = top ? 1.53 : aspect < 0.8 ? 1.02 : 0.9;
+    const pitch = top ? 1.53 : aspect < 0.8 ? 1.14 : 0.9;
     const fov = top ? 30 : aspect >= 1 ? 40 : clamp((2 * Math.atan(Math.tan((16 * Math.PI) / 180) / aspect) * 180) / Math.PI, 40, 56);
     const safe = o.safe || { top: 60, bottom: 20, left: 8, right: 8 };
     const key = `${w}x${h}:${pitch}:${safe.top}:${safe.bottom}:${safe.left}:${safe.right}`;
@@ -272,6 +281,8 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
         const row = e.axis === 'row', c = row ? wz(e.index) : wx(e.index);
         for (let k = 0; k < 14; k++) { const t = -9.5 + k * 1.46; const x = row ? t : c, z = row ? c : t; fx.puffs(x, Y0 + 0.2, z, '#d8c8a8', 2, { speed: 1.4, up: 0.8, size: 0.9, a: 0.5, life: 0.7 }); fx.sparks(x, Y0 + 0.3, z, '#fff0c0', 2, { speed: 2.5, up: 3, size: 0.18, life: 0.4 }); }
         fx.popup('KLAK!', row ? 0 : c, Y0 + 1.6, row ? c : 0, { size: 1.3, life: 0.8 });
+        clackT = 0; clack.visible = true; clack.rotation.z = row ? 0 : Math.PI / 2; clack.position.set(row ? 0 : c, Y0 + 0.05, row ? c : 0);
+        for (const s of [-1, 1]) fx.ring(row ? s * 11.4 : c, STAGE + 0.5, row ? c : s * 11.4, '#fff0c0', { size: 2.4, life: 0.4, k: 2 });
         cam.shake = Math.max(cam.shake, 0.35); cam.flash = Math.max(cam.flash, 0.25);
         break;
       }
@@ -290,7 +301,7 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
       case 'shield': {
         const h = lastHead;
         fx.ring(h.x, Y0 + 0.05, h.z, '#ffd23f', { size: 5, life: 0.6, k: 3 }); fx.sparks(h.x, Y0 + 0.5, h.z, '#ffd23f', 40, { speed: 6, up: 3, size: 0.3 });
-        fx.popup('ANTING-ANTING!', h.x, Y0 + 1.8, h.z, { size: 1.1 }); fx.flash(h.x, Y0 + 2, h.z, '#ffd23f', 60, 14);
+        fx.popup('ANTING-ANTING!', h.x, Y0 + 1.8, h.z, { size: 1.1 }); cheer = 1; fx.flash(h.x, Y0 + 2, h.z, '#ffd23f', 60, 14);
         cam.shake = Math.max(cam.shake, 0.3); cam.flash = 0.6;
         break;
       }
@@ -315,6 +326,7 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
     fx.ring(x, Y0 + 0.03, z, special ? SPECIAL_GLOW[ent.type] : '#fff0c0', { size: special ? 3 : 1.6, life: 0.4, k: special ? 2.4 : 1.2 });
     fx.flash(x, Y0 + 1.2, z, special ? SPECIAL_GLOW[ent.type] : '#ffd890', special ? 40 : 12, special ? 10 : 5);
     fx.popup(`+${e.points}`, x, Y0 + 1, z, { color: e.mult > 1 ? null : '#fff8e1', size: 0.7 + Math.min(0.5, e.mult * 0.1) });
+    if (e.combo >= 3 || special) cheer = Math.max(cheer, Math.min(1, 0.45 + e.combo * 0.08));
     const sub = { balut: ['SUWERTE!', '×2 lahat'], sili: ['ANGHANG!', '×2 at bilis'], halohalo: ['BRAIN FREEZE!', 'bagal muna'], anting: ['ANTING-ANTING', 'ligtas ka minsan'] }[ent.type];
     if (sub) { fx.popup(sub[0], x, Y0 + 2, z, { size: 1.05, sub: sub[1], life: 1.3, delay: 0.08 }); cam.punch = 1; }
     else if (e.combo >= 3) fx.popup(pick(YUM), x, Y0 + 1.8, z, { color: '#ff8ae2', size: 0.8, delay: 0.06 });
@@ -337,7 +349,7 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
   function reset(g) {
     for (const e of [...foods.values()]) dropFood(e);
     for (const [, p] of pots) scene.remove(p.g); pots.clear();
-    snake.reset(); fx.clear(); bites.length = 0; rs.seen = false; R.group.visible = false; ps.active = false; TP.group.visible = false; danger.visible = false;
+    snake.reset(); fx.clear(); bites.length = 0; rockets.length = 0; cheer = 0; clack.visible = false; clackT = -1; rs.seen = false; R.group.visible = false; ps.active = false; TP.group.visible = false; danger.visible = false;
     cam.shake = 0; cam.flash = 0; potDelay = 0;
     setFestival(g ? g.level : 1, { instant: true });
   }
@@ -460,8 +472,21 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
       }
       if (ps.out >= 1) { ps.active = false; TP.group.visible = false; }
     }
-    // ---- the plaza ----
+    // ---- the plaza and its crowd ----
     plaza.update(t, dt, { reduced, wrap: !!g.wrap });
+    cheer = Math.max(0, cheer - dt * 0.45);
+    crowd.update(t, o.mode === 'over' ? 0 : cheer, reduced);
+    if (clackT >= 0) { clackT += dt; const k = clackT / 0.42; if (k >= 1) { clack.visible = false; clackT = -1; } else { clack.scale.set(1, 0.6 + k * 5.5, 1); clack.material.opacity = (1 - k) ** 1.5; } }
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const r = rockets[i]; r.t += dt;
+      if (r.t < 0) continue;
+      const y = STAGE + r.t * 26;
+      if (y < r.top) { fx.glow.add({ x: r.x, y, z: r.z, vx: 0, vy: -2, vz: 0, drag: 2, life: 0.4, max: 0.4, size: 0.5, shrink: true, r: 3, gg: 2.4, b: 1.4 }); continue; }
+      fx.sparks(r.x, r.top, r.z, r.c, 70, { speed: 9, up: 1, g: 4, size: 0.8, life: 1.3, k: 3.2 }); fx.flash(r.x, r.top, r.z, r.c, 30, 30);
+      rockets.splice(i, 1);
+    }
+    // a glint on the food now and then
+    if (!reduced) for (const ent of foods.values()) if (!ent.eaten && ent.leaving < 0 && Math.random() < dt * 0.7) fx.glow.add({ x: ent.g.position.x + (Math.random() - 0.5) * 0.3, y: Y0 + 0.55, z: ent.g.position.z + (Math.random() - 0.5) * 0.3, vx: 0, vy: 0.2, vz: 0, life: 0.3, max: 0.3, size: 0.55, grow: -0.8, r: 3, gg: 3, b: 2.6 });
     // torches, candles, the bonfire
     const night = cur.night || 0;
     const fl = plaza.flames;
@@ -501,7 +526,10 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
         const e2 = ease(k); want = P1; P1.pos.lerp(P.pos, e2); P1.look.lerp(P.look, e2); P1.fov = lerp(P1.fov, P.fov, e2); P1.up = P.up * e2;
       } else if (shot.kind === 'level') {
         const out = k < 0.45 ? ease(k / 0.45) : k < 0.62 ? 1 : 1 - ease((k - 0.62) / 0.38);
-        if (!shot.switched && k > 0.28) { shot.switched = true; setFestival(shot.lvl); fx.rain(0, 0, 18, fest.flags, 90, { y: 18, life: 4, scale: 1.2 }); }
+        if (!shot.switched && k > 0.28) {
+          shot.switched = true; setFestival(shot.lvl); fx.rain(0, 0, 18, fest.flags, 90, { y: 18, life: 4, scale: 1.2 }); cheer = 1;
+          if (!reduced) for (let i = 0; i < 7; i++) rockets.push({ t: -i * 0.16, x: (Math.random() - 0.5) * 34, z: -14 - Math.random() * 16, top: 17 + Math.random() * 8, c: pick(fest.flags) });
+        }
         P1.pos.set(shot.side * 22, 28, 36); P1.look.set(0, 3, -14); P1.fov = 44; P1.up = 0;
         want = P1; P1.pos.lerp(P.pos, 1 - out); P1.look.lerp(P.look, 1 - out); P1.fov = lerp(P.fov, 42, out); P1.up = P.up * (1 - out);
       } else if (shot.kind === 'death') {
@@ -552,5 +580,5 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
   }
 
   resize(); quality(level);
-  return { frame, event, reset, resize, intro, levelShot, skip, holding, setFestival, setEnv, post, get level() { return level; }, renderer, scene, camera, snake, plaza, fx, get shot() { return shot; } };
+  return { frame, event, reset, resize, intro, levelShot, skip, holding, setFestival, setEnv, post, crowd, cheerNow: (k = 1) => { cheer = Math.max(cheer, k); }, get level() { return level; }, renderer, scene, camera, snake, plaza, fx, get shot() { return shot; } };
 }
