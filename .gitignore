@@ -1,1 +1,4 @@
 .vercel
+.scratch
+# Mixamo people from Tumbang Preso: shipped inside the Vercel deploy only, never committed
+assets/people/
