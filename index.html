@@ -33,6 +33,7 @@ body.flat #board { display: block; position: absolute; left: 50%; top: 50%; tran
 body.flat.touch.playing #board { width: min(96vw, 600px, calc((100vh - 200px) * 600 / 708)); top: 42%; }
 body.flat { background: radial-gradient(ellipse at 50% 0%, var(--accent, #4a1760) 0%, #2a0f3a 48%, #140620 100%) fixed; }
 body.flat #hud .hud-top, body.flat #fx-chips { display: none; }
+body.flat #pause-btn { min-height: 28px; padding: 0 10px; font-size: 12px; }
 /* type */
 .gold { background: linear-gradient(180deg, #fffbe0 0%, #ffd23f 42%, #e8741c 58%, #fff0b0 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .logo { margin: 0; font: italic 900 clamp(84px, 20vw, 170px)/.8 "Barlow Condensed", "Baloo 2", sans-serif; letter-spacing: .02em; filter: drop-shadow(0 6px 0 #120d14) drop-shadow(0 0 34px rgba(255,120,40,.5)); }
@@ -113,8 +114,8 @@ kbd { background: #3a1a4a; border: 1px solid #6a4a7a; border-radius: 4px; paddin
 .eff { position: relative; overflow: hidden; min-width: 132px; padding: 3px 12px 2px; font: italic 900 15px/1.2 "Barlow Condensed", sans-serif; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(16,8,22,.85); border: 2px solid var(--c); box-shadow: 0 0 0 2px #120d14, 0 0 14px color-mix(in srgb, var(--c) 45%, transparent); transform: skewX(-10deg); animation: slidein .25s ease-out; }
 .eff i { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--c) 45%, transparent); z-index: -1; }
 .eff span { position: relative; }
-@keyframes slidein { from { transform: skewX(-10deg) translateX(-120%); } }
-@media (max-width: 560px) { #fx-chips { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 146px); left: 8px; flex-direction: row; flex-wrap: wrap; right: 8px; } body:not(.touch) #fx-chips { bottom: 16px; } .eff { min-width: 0; font-size: 13px; } .chip { min-width: 0; padding: 3px 12px 2px; } .chip b { font-size: 22px; } .chip.mid b { font-size: 17px; } }
+@keyframes slidein { from { transform: skewX(-10deg) translateY(10px); opacity: 0; } }
+@media (max-width: 560px) { #fx-chips { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 146px); left: 14px; flex-direction: row; flex-wrap: wrap; right: 14px; justify-content: center; } body:not(.touch) #fx-chips { bottom: 16px; } .eff { min-width: 0; font-size: 13px; } .chip { min-width: 0; padding: 3px 12px 2px; } .chip b { font-size: 22px; } .chip.mid b { font-size: 17px; } }
 #pause-btn { position: absolute; right: 10px; top: calc(max(10px, env(safe-area-inset-top)) + 60px); pointer-events: auto; min-height: 34px; padding: 2px 12px; font-size: 14px; transform: none; background: rgba(20,10,26,.66); border-color: rgba(255,255,255,.35); }
 #banner { position: absolute; left: 50%; top: 26%; transform: translateX(-50%); text-align: center; pointer-events: none; width: 96vw; }
 #banner b { display: block; font: italic 900 clamp(46px, 11vw, 96px)/.9 "Barlow Condensed", sans-serif; text-transform: uppercase; filter: drop-shadow(0 5px 0 #120d14) drop-shadow(0 0 24px rgba(255,140,40,.5)); }

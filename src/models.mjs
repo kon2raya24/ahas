@@ -265,7 +265,7 @@ export function snakeHead() {
   // eyes: big and glossy, with lids for blinking
   const eyes = [];
   for (const s of [-1, 1]) {
-    const e = new THREE.Group(); e.position.set(0.14, 0.16, s * 0.2); g.add(e);
+    const e = new THREE.Group(); e.position.set(0.17, 0.15, s * 0.21); e.scale.setScalar(1.25); g.add(e);
     e.add(mesh(sphere(0.1, 20, 14), mats().enamel));
     const pupil = mesh(sphere(0.062, 18, 12), mats().pupil, { x: 0.05, y: 0.02, z: s * 0.045 }); e.add(pupil);
     e.add(mesh(sphere(0.018, 8, 6), phys('#ffffff', { emissive: '#ffffff', emissiveIntensity: 0.6 }), { x: 0.085, y: 0.06, z: s * 0.05, cast: false }));
@@ -280,7 +280,7 @@ export function snakeHead() {
   for (const s of [-1, 1]) tongue.add(mesh(new THREE.BoxGeometry(0.1, 0.016, 0.022), tm, { x: 0.3, z: s * 0.025, ry: -s * 0.5 }));
   tongue.scale.set(0.001, 1, 1);
   // the salakot
-  const hat = salakot(); hat.scale.setScalar(0.72); hat.position.set(-0.12, 0.2, 0); g.add(hat);
+  const hat = salakot(); hat.scale.setScalar(1.08); hat.position.set(-0.1, 0.21, 0); g.add(hat);
   return { group: g, skull, jaw, eyes, tongue, hat, skinM };
 }
 export function salakot() {

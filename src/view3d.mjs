@@ -96,9 +96,20 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
     fragmentShader: 'uniform float frac, warn, time; uniform vec3 color; varying vec2 vUv; void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); float a = atan(p.x, p.y) / 6.2831853 + 0.5; float ring = smoothstep(0.74, 0.79, r) * (1.0 - smoothstep(0.9, 0.95, r)); float on = step(a, frac); float glow = (1.0 - smoothstep(0.0, 0.8, r)) * 0.25; float blink = warn > 0.5 ? 0.45 + 0.55 * step(0.0, sin(time * 22.0)) : 1.0; gl_FragColor = vec4(color * 1.6, (ring * (on * 0.95 + 0.1) + glow) * blink); }',
   });
   const foods = new Map(); // game food → its model
+  // every food fills about 0.75 of a cell, whatever its model's size
+  const scales = {};
+  const foodScale = (type) => { if (!scales[type]) { const b = new THREE.Box3().setFromObject(tpl(type)), sz = b.getSize(new THREE.Vector3()); scales[type] = Math.min(0.78 / Math.max(sz.x, sz.z, 0.01), 0.85 / Math.max(sz.y, 0.01)); } return scales[type]; };
+  const blobTex = (() => { const c = T.canvas(64, 64), x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return T.toTex(c, { color: false }); })();
+  const blobGeo = new THREE.PlaneGeometry(0.9, 0.9);
+  const blobM = new THREE.MeshBasicMaterial({ color: '#1a0c04', alphaMap: blobTex, transparent: true, opacity: 0.55, depthWrite: false });
+  const glowMats = {};
+  const glowM = (c) => (glowMats[c] ||= new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(0.55), alphaMap: blobTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
   function addFood(f) {
     const g = new THREE.Group(); g.position.set(wx(f.x), Y0, wz(f.y));
-    const model = tpl(f.type).clone(true); const holder = new THREE.Group(); holder.scale.setScalar(1.6); holder.add(model); g.add(holder);
+    const model = tpl(f.type).clone(true); const holder = new THREE.Group(); holder.scale.setScalar(foodScale(f.type)); holder.add(model); g.add(holder);
+    // a soft contact shadow and a warm glow, so food pops off the mat
+    const sh = new THREE.Mesh(blobGeo, blobM); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.012; sh.renderOrder = 1; g.add(sh);
+    const gl = new THREE.Mesh(blobGeo, glowM(FOODS[f.type].special ? SPECIAL_GLOW[f.type] : '#ffd27a')); gl.rotation.x = -Math.PI / 2; gl.position.y = 0.016; gl.scale.setScalar(1.25); gl.renderOrder = 2; g.add(gl);
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
     const e = { f, g, model, type: f.type, x: f.x, y: f.y, t: 0, special: !!FOODS[f.type].special, eaten: null, leaving: -1, spin: Math.random() * TAU };
     if (e.special) {
@@ -201,8 +212,8 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
   function playPose(o, out) {
     const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1, aspect = w / h;
     const top = o.camStyle === 'top';
-    const pitch = top ? 1.53 : aspect < 0.8 ? 1.22 : 0.9;
-    const fov = aspect >= 1 ? 30 : clamp((2 * Math.atan(Math.tan((13 * Math.PI) / 180) / aspect) * 180) / Math.PI, 30, 44);
+    const pitch = top ? 1.53 : aspect < 0.8 ? 1.02 : 0.9;
+    const fov = top ? 30 : aspect >= 1 ? 40 : clamp((2 * Math.atan(Math.tan((16 * Math.PI) / 180) / aspect) * 180) / Math.PI, 40, 56);
     const safe = o.safe || { top: 60, bottom: 20, left: 8, right: 8 };
     const key = `${w}x${h}:${pitch}:${safe.top}:${safe.bottom}:${safe.left}:${safe.right}`;
     if (key !== fit.key) {
@@ -387,7 +398,7 @@ export function createView(canvas, { low = false, gfx = null, onBite = null } = 
       } else if (!live && ent.leaving < 0) ent.leaving = 0;
       if (ent.leaving >= 0) { ent.leaving += dt; const k = clamp(ent.leaving / 0.3, 0, 1); ent.model.scale.setScalar(Math.max(0.001, 1 - k)); if (ent.ring) ent.ring.material.uniforms.frac.value = 0; if (k >= 1) dropFood(ent); continue; }
       ent.model.scale.setScalar(Math.max(0.001, pop));
-      ent.model.position.set(0, 0.2 + bob + (ent.special ? 0.1 : 0), 0);
+      ent.model.position.set(0, 0.16 + bob + (ent.special ? 0.06 : 0), 0);
       ent.model.rotation.y = ent.spin + (reduced ? 0 : t * (ent.special ? 1.4 : 0.6));
       if (ent.ring) { const u = ent.ring.material.uniforms; u.frac.value = clamp((ent.f.life ?? 0) / FOODS[ent.type].life, 0, 1); u.warn.value = (ent.f.life ?? 9) < 2.2 && !reduced ? 1 : 0; u.time.value = t; }
     }

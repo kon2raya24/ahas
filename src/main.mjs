@@ -273,9 +273,14 @@ function hud(resetScore = false) {
     if (g.shield) chips.push(['Anting-anting', '#ffe070', 1]);
     if (g.combo >= 2) { const m = Math.min(4, 1 + Math.floor((g.combo - 1) / 2)); chips.push([`Sunod-sunod ${g.combo}${m > 1 ? ` ×${m}` : ''}`, '#ff8ae2', Math.max(0, 1 - (g.t - g.lastEat) / 2.5)]); }
   }
-  const box = $('fx-chips'), key = chips.map((c) => c[0]).join('|');
-  if (box.dataset.key !== key) { box.dataset.key = key; box.innerHTML = chips.map(([l, c]) => `<div class="eff" style="--c:${c}"><i></i><span>${l}</span></div>`).join(''); }
-  [...box.children].forEach((el, i) => { el.firstChild.style.width = `${Math.round(chips[i][2] * 100)}%`; });
+  // one chip per effect, kept while it lasts (its label and bar update in place, so it slides in once)
+  const box = $('fx-chips'), key = chips.map((c) => c[1]).join('|');
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    const old = new Map([...box.children].map((el) => [el.dataset.c, el]));
+    box.replaceChildren(...chips.map(([, c]) => { if (old.has(c)) return old.get(c); const el = document.createElement('div'); el.className = 'eff'; el.dataset.c = c; el.style.setProperty('--c', c); el.append(document.createElement('i'), document.createElement('span')); return el; }));
+  }
+  [...box.children].forEach((el, i) => { el.firstChild.style.width = `${Math.round(chips[i][2] * 100)}%`; if (el.lastChild.textContent !== chips[i][0]) el.lastChild.textContent = chips[i][0]; });
 }
 
 function pause() { if (mode === 'play') { mode = 'pause'; show('pause'); } }
@@ -397,6 +402,11 @@ function updateTitle() {
 }
 updateTitle();
 
+// The 2D board leaves room for the pause button in its bottom-right corner, under the mat.
+function placeFlatPause() {
+  const r = $('board').getBoundingClientRect(), b = $('pause-btn');
+  b.style.top = `${Math.round(r.top + r.height * 0.952)}px`; b.style.right = `${Math.round(innerWidth - r.right + r.width * 0.02)}px`;
+}
 // Where the board may sit: below the HUD, above the d-pad.
 function safeArea() {
   const w = innerWidth, h = innerHeight, portrait = h > w;
@@ -443,7 +453,8 @@ function frame(now) {
 async function boot() {
   try { await Promise.race([document.fonts.load('italic 900 34px "Barlow Condensed"'), new Promise((r) => setTimeout(r, 1500))]); } catch { /* system fonts, then */ }
   await makeView();
-  window.addEventListener('resize', () => (V ? V.resize() : R.resize()));
+  window.addEventListener('resize', () => (V ? V.resize() : (R.resize(), placeFlatPause())));
+  if (!V) placeFlatPause();
   if (V) new ResizeObserver(() => V.resize()).observe($('view'));
   // the photographed skies, scanned surfaces and real props load in the background; a bar shows it
   if (V && Q.get('env') !== '0') {

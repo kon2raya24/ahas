@@ -11,8 +11,9 @@ const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const lerpAngle = (a, b, k) => a + ((((b - a + Math.PI) % TAU) + TAU) % TAU - Math.PI) * k;
-export const RADIUS = 0.3, FILLET = 0.45;
+export const RADIUS = 0.39, FILLET = 0.45;
 
+const HS = 1.42; // the head is bigger than the body, so it leads the eye
 export function createSnake({ radial = 14, perCell = 8, Y0 = 0, cols = 20, rows = 20 } = {}) {
   const skins = { flag: T.scales('flag'), gold: T.scales('gold'), ice: T.scales('ice') };
   for (const k in skins) { skins[k].normalMap.repeat.set(2, 2); }
@@ -129,7 +130,7 @@ export function createSnake({ radial = 14, perCell = 8, Y0 = 0, cols = 20, rows 
       const rings = Math.max(2, Math.ceil(len * perCell) + 1);
       if (rings > cap) alloc(rings);
       const pos = geo.attributes.position.array, nor = geo.attributes.normal.array, uv = geo.attributes.uv.array;
-      const lt = clamp(len * 0.45, 0.8, 2.6), amp = (reduced ? 0.05 : 0.085), idle = o.still ? t * 1.1 : 0;
+      const lt = clamp(len * 0.45, 0.8, 2.6), amp = (reduced ? 0.03 : 0.055), idle = o.still ? t * 1.1 : 0;
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
       for (let i = 0; i < rings; i++) {
         const u = u0 + (len * i) / (rings - 1);
@@ -183,10 +184,10 @@ export function createSnake({ radial = 14, perCell = 8, Y0 = 0, cols = 20, rows 
     yaw = lerpAngle(yaw, target, 1 - Math.exp(-dt * (o.snap ? 60 : 32)));
     // the hat lags behind a turn and swings back
     hatSpin += (lerpAngle(0, yaw - hatYaw, 1) * 90 - hatSpin * 9) * dt; hatYaw += hatSpin * dt;
-    H.group.position.set(hx, Y0 + 0.1, hz); H.group.scale.multiplyScalar(1);
+    H.group.position.set(hx, Y0 + 0.12, hz);
     H.group.rotation.set(0, yaw, 0);
     // lunge into whatever killed you, then recoil
-    if (lunge) { lunge.t += dt; const k = lunge.t < 0.09 ? lunge.t / 0.09 : Math.max(0, 1 - (lunge.t - 0.09) / 0.25); H.group.position.x += dx * k * 0.32; H.group.position.z += dz * k * 0.32; }
+    if (lunge) { lunge.t += dt; const k = lunge.t < 0.09 ? lunge.t / 0.09 : Math.max(0, 1 - (lunge.t - 0.09) / 0.25); H.group.position.x += dx * k * 0.25; H.group.position.z += dz * k * 0.25; }
     // food ahead: the mouth opens as the head closes in
     const ahead = g.foods && g.foods.find((f) => f.x === (g.snake[0].x + dx + g.cols) % g.cols && f.y === (g.snake[0].y + dz + g.rows) % g.rows);
     const want = o.bite ? 1 : ahead ? smooth(0.25, 0.95, prog) * 0.8 : 0;
@@ -194,7 +195,7 @@ export function createSnake({ radial = 14, perCell = 8, Y0 = 0, cols = 20, rows 
     chomp = Math.max(0, chomp - dt);
     squash = Math.max(0, squash - dt * 5);
     const sq = Math.sin(squash * Math.PI) * 0.22;
-    H.group.scale.set(1 + sq, 1 - sq * 0.6, 1 + sq * 0.4);
+    H.group.scale.set(HS * (1 + sq), HS * (1 - sq * 0.6), HS * (1 + sq * 0.4));
     H.jaw.rotation.z = -jaw * 0.55;
     H.skull.rotation.z = jaw * 0.12;
     // blinking, and the tongue now and then
@@ -220,7 +221,7 @@ export function createSnake({ radial = 14, perCell = 8, Y0 = 0, cols = 20, rows 
       if (hatFly.p.y < Y0 + 0.02) { hatFly.p.y = Y0 + 0.02; hatFly.vy *= -0.3; hatFly.v.multiplyScalar(0.6); }
       H.hat.position.copy(hatFly.p); H.hat.rotation.set(hatFly.spin * 0.4, hatFly.spin, 0.3);
     } else {
-      H.hat.position.set(-0.13, 0.19 + sq * 0.2 + jaw * 0.03, 0);
+      H.hat.position.set(-0.1, 0.21 + sq * 0.2 + jaw * 0.03, 0);
       H.hat.rotation.set(0, hatYaw - yaw, 0.22 + jaw * 0.1 + clamp(hatSpin * 0.02, -0.2, 0.2));
     }
     // the head during the death pop

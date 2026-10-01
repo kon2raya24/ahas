@@ -1,6 +1,6 @@
 // Offline play: the game's own files (three.js and the sounds included) are cached on install and
 // served cache-first; the plaza's scans (assets/env) and the webfont are cached the first time they load. Bump VERSION whenever a file changes so players get the update.
-const VERSION = 'ahas-v14';
+const VERSION = 'ahas-v15';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',

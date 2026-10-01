@@ -70,15 +70,15 @@ export function paint(w, h, fn, { repeat = null, strength = 0 } = {}) {
 // A giant woven mat whose strips are one cell wide, so the weave itself is the grid: every cell is a
 // crossing, with the row's strip on top in one cell and the column's in the next. Dyed strips make the
 // festival's bands. `cols` strips each way; `px` pixels per cell.
-export const BANIG_BASE = '#c8a468';
+export const BANIG_BASE = '#c29c5c';
 export function banigMap(fest, { n = 20, px = 64 } = {}) {
   const S = n * px, cv = canvas(S, S), x = cv.getContext('2d'), r = rng(fest.name.length * 97 + 5);
   // which strips are dyed: four bands each way, like the 2D mat
   const dye = new Map();
   fest.bands.forEach((c, i) => dye.set(2 + i * 5, c));
-  const tone = Array.from({ length: n * 2 }, () => 0.93 + r() * 0.12);
+  const tone = Array.from({ length: n * 2 }, () => 0.88 + r() * 0.16);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-    const rowTop = (i + j) % 2 === 0, strip = rowTop ? j : i, c = dye.get(strip) ? mix(dye.get(strip), BANIG_BASE, 0.2) : BANIG_BASE;
+    const rowTop = (i + j) % 2 === 0, strip = rowTop ? j : i, c = dye.get(strip) ? mix(dye.get(strip), BANIG_BASE, 0.06) : BANIG_BASE;
     const k = tone[rowTop ? j : n + i], X = i * px, Y = j * px;
     x.fillStyle = shade(c, k); x.fillRect(X, Y, px, px);
     // the fibres run along the strip that's on top
@@ -89,7 +89,7 @@ export function banigMap(fest, { n = 20, px = 64 } = {}) {
     }
     // the strip curves down into the weave at both ends, and its edges sit in the other strip's shadow
     const g = rowTop ? x.createLinearGradient(X, 0, X + px, 0) : x.createLinearGradient(0, Y, 0, Y + px);
-    g.addColorStop(0, 'rgba(60,36,12,0.34)'); g.addColorStop(0.12, 'rgba(60,36,12,0.06)'); g.addColorStop(0.88, 'rgba(60,36,12,0.06)'); g.addColorStop(1, 'rgba(60,36,12,0.34)');
+    g.addColorStop(0, 'rgba(50,28,8,0.5)'); g.addColorStop(0.14, 'rgba(50,28,8,0.06)'); g.addColorStop(0.86, 'rgba(50,28,8,0.06)'); g.addColorStop(1, 'rgba(50,28,8,0.5)');
     x.fillStyle = g; x.fillRect(X, Y, px, px);
     x.fillStyle = 'rgba(70,40,14,0.28)';
     if (rowTop) { x.fillRect(X, Y, px, 1.5); x.fillRect(X, Y + px - 1.5, px, 1.5); } else { x.fillRect(X, Y, 1.5, px); x.fillRect(X + px - 1.5, Y, 1.5, px); }

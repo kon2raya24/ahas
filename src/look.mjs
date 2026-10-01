@@ -4,14 +4,14 @@
 // [sky for light, its strength, backdrop, backdrop turn, backdrop tint]
 export const LOOK = {
   Fiesta: {
-    time: 'Hapon · afternoon', sky: 'kloofendal_48d_partly_cloudy_puresky', env: 0.8, backdrop: 'kloofendal_48d_partly_cloudy_puresky', turn: 2.6, tint: '#ffffff',
-    sun: { az: -0.75, el: 0.95, color: '#fff1da', i: 2.4 }, hemi: ['#dfeeff', '#b59a74', 0.6], fog: ['#cfe0f0', 60, 190], exposure: 1.0,
-    grade: [1.12, 1.12, [1.02, 1.0, 0.96], 0.36, 0.2, 1.4], paint: ['#ce1126', '#fcd116', '#0038a8', '#f4f1e8'], night: 0,
+    time: 'Hapon · afternoon', sky: 'kloofendal_48d_partly_cloudy_puresky', env: 0.5, backdrop: 'kloofendal_48d_partly_cloudy_puresky', turn: 2.6, tint: '#ffffff',
+    sun: { az: -0.75, el: 0.95, color: '#fff1da', i: 2.4 }, hemi: ['#dfeeff', '#b59a74', 0.45], fog: ['#c4d6e8', 80, 230], exposure: 0.86,
+    grade: [1.16, 1.14, [1.02, 1.0, 0.95], 0.38, 0.16, 1.6], paint: ['#ce1126', '#fcd116', '#0038a8', '#f4f1e8'], night: 0,
     skyCol: ['#4f86c8', '#cfe2f2'],
   },
   Pahiyas: {
-    time: 'Umaga · morning', sky: 'qwantani_morning_puresky', env: 0.7, backdrop: 'qwantani_morning_puresky', turn: 2.2, tint: '#fff4e6',
-    sun: { az: -0.35, el: 0.62, color: '#ffe2b8', i: 3.1 }, hemi: ['#e6f0ff', '#9aa870', 0.9], fog: ['#e8e2d0', 55, 180], exposure: 1.02,
+    time: 'Umaga · morning', sky: 'qwantani_morning_puresky', env: 0.5, backdrop: 'qwantani_morning_puresky', turn: 2.2, tint: '#fff4e6',
+    sun: { az: -0.35, el: 0.62, color: '#ffe2b8', i: 3.1 }, hemi: ['#e6f0ff', '#9aa870', 0.6], fog: ['#e0d8c4', 70, 210], exposure: 0.92,
     grade: [1.08, 1.16, [1.04, 1.02, 0.94], 0.32, 0.2, 1.3], paint: ['#e53935', '#43a047', '#fdd835', '#8e24aa'], night: 0,
     skyCol: ['#5a8ad0', '#f2e2c8'],
   },
@@ -22,9 +22,9 @@ export const LOOK = {
     skyCol: ['#3a78c8', '#d6e8f6'],
   },
   Panagbenga: {
-    time: 'Maulap na umaga · misty morning', sky: 'kloofendal_misty_morning_puresky', env: 1.0, backdrop: 'kloofendal_misty_morning_puresky', turn: 0, tint: '#eef2f8',
-    sun: { az: -0.6, el: 0.8, color: '#f4f0ff', i: 1.9 }, hemi: ['#eef2ff', '#9aa08a', 1.25], fog: ['#dfe3ea', 26, 120], exposure: 1.05,
-    grade: [1.02, 1.08, [1.0, 0.98, 1.04], 0.3, 0.26, 1.2], paint: ['#ec407a', '#ab47bc', '#66bb6a', '#ffa726'], night: 0,
+    time: 'Maulap na umaga · misty morning', sky: 'kloofendal_misty_morning_puresky', env: 0.5, backdrop: 'kloofendal_misty_morning_puresky', turn: 0, tint: '#eef2f8',
+    sun: { az: -0.6, el: 0.8, color: '#f4f0ff', i: 2.0 }, hemi: ['#eef2ff', '#9aa08a', 0.7], fog: ['#d4d9e2', 40, 150], exposure: 0.9,
+    grade: [1.14, 1.12, [1.0, 0.98, 1.03], 0.36, 0.16, 1.6], paint: ['#ec407a', '#ab47bc', '#66bb6a', '#ffa726'], night: 0,
     skyCol: ['#aab8c8', '#e2e6ec'],
   },
   MassKara: {
